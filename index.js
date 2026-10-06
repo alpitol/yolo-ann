@@ -781,10 +781,14 @@
             }
         } else {
             const json = JSON.parse(text)
+            let unmatched = 0
 
             for (let i = 0; i < json.annotations.length; i++) {
                 let imageName = null
                 let categoryName = null
+                // Reset per annotation so an unmatched one can't reuse the previous image's bbox
+                image = null
+                bbox = null
 
                 for (let j = 0; j < json.images.length; j++) {
                     if (json.annotations[i].image_id === json.images[j].id) {
@@ -802,6 +806,12 @@
                             break
                         }
                     }
+                }
+
+                if (bbox === null) {
+                    unmatched++
+
+                    continue
                 }
 
                 for (let j = 0; j < json.categories.length; j++) {
@@ -836,15 +846,51 @@
                     }
                 }
             }
+
+            if (unmatched > 0) {
+                console.warn(`${filename}: skipped ${unmatched} annotation(s) whose image is not loaded`)
+            }
         }
+    }
+
+    // Returns the image for an annotated name, or null (and records the name) if it isn't loaded
+    const resolveImage = (imageName, skipped) => {
+        const image = images[imageName]
+
+        if (typeof image === "undefined" || typeof image.width === "undefined") {
+            skipped.push(imageName)
+
+            return null
+        }
+
+        return image
+    }
+
+    const reportSkipped = (format, skipped) => {
+        if (skipped.length === 0) {
+            return
+        }
+
+        console.warn(`${format} export: skipped ${skipped.length} annotated image(s) not in the loaded image set:`, skipped)
+
+        const shown = skipped.slice(0, 10).join("\n")
+        const more = skipped.length > 10 ? `\n...and ${skipped.length - 10} more` : ""
+
+        alert(`${format} export: skipped ${skipped.length} annotated image(s) that are not in the loaded image set ` +
+            `(see console for the full list):\n\n${shown}${more}`)
     }
 
     const listenBboxSave = (saveBBoxesContainerID) => {
         document.getElementById(saveBBoxesContainerID).addEventListener("click", () => {
             const zip = new JSZip()
+            const skipped = []
 
             for (let imageName in bboxes) {
-                const image = images[imageName]
+                const image = resolveImage(imageName, skipped)
+
+                if (image === null) {
+                    continue
+                }
 
                 const name = imageName.split(".")
 
@@ -869,6 +915,8 @@
                 zip.file(name.join("."), result.join("\n"))
             }
 
+            reportSkipped("YOLO", skipped)
+
             zip.generateAsync({type: "blob"})
                 .then((blob) => {
                     saveAs(blob, "bboxes_yolo.zip")
@@ -881,9 +929,14 @@
             const folderPath = document.getElementById(vocFolderContainerID).value
 
             const zip = new JSZip()
+            const skipped = []
 
             for (let imageName in bboxes) {
-                const image = images[imageName]
+                const image = resolveImage(imageName, skipped)
+
+                if (image === null) {
+                    continue
+                }
 
                 const name = imageName.split(".")
 
@@ -935,6 +988,8 @@
                 }
             }
 
+            reportSkipped("VOC", skipped)
+
             zip.generateAsync({type: "blob"})
                 .then((blob) => {
                     saveAs(blob, "bboxes_voc.zip")
@@ -971,9 +1026,14 @@
             }
 
             let id = 0
+            const skipped = []
 
             for (let imageName in bboxes) {
-                const image = images[imageName]
+                const image = resolveImage(imageName, skipped)
+
+                if (image === null) {
+                    continue
+                }
 
                 for (let className in bboxes[imageName]) {
                     for (let i = 0; i < bboxes[imageName][className].length; i++) {
@@ -998,9 +1058,11 @@
                         })
                     }
                 }
-
-                zip.file("coco.json", JSON.stringify(result))
             }
+
+            zip.file("coco.json", JSON.stringify(result))
+
+            reportSkipped("COCO", skipped)
 
             zip.generateAsync({type: "blob"})
                 .then((blob) => {
