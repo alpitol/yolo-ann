@@ -880,6 +880,20 @@
             `(see console for the full list):\n\n${shown}${more}`)
     }
 
+    // Clips a bbox to the image bounds without modifying it; returns null if nothing of it lies inside the image
+    const clampBbox = (bbox, image) => {
+        const x1 = Math.max(0, Math.min(bbox.x, bbox.x + bbox.width))
+        const y1 = Math.max(0, Math.min(bbox.y, bbox.y + bbox.height))
+        const x2 = Math.min(image.width, Math.max(bbox.x, bbox.x + bbox.width))
+        const y2 = Math.min(image.height, Math.max(bbox.y, bbox.y + bbox.height))
+
+        if (x2 <= x1 || y2 <= y1) {
+            return null
+        }
+
+        return {x: x1, y: y1, width: x2 - x1, height: y2 - y1}
+    }
+
     const listenBboxSave = (saveBBoxesContainerID) => {
         document.getElementById(saveBBoxesContainerID).addEventListener("click", () => {
             const zip = new JSZip()
@@ -900,7 +914,11 @@
 
                 for (let className in bboxes[imageName]) {
                     for (let i = 0; i < bboxes[imageName][className].length; i++) {
-                        const bbox = bboxes[imageName][className][i]
+                        const bbox = clampBbox(bboxes[imageName][className][i], image)
+
+                        if (bbox === null) {
+                            continue
+                        }
 
                         // Prepare data for yolo format
                         const x = (bbox.x + bbox.width / 2) / image.width
@@ -961,7 +979,11 @@
 
                 for (let className in bboxes[imageName]) {
                     for (let i = 0; i < bboxes[imageName][className].length; i++) {
-                        const bbox = bboxes[imageName][className][i]
+                        const bbox = clampBbox(bboxes[imageName][className][i], image)
+
+                        if (bbox === null) {
+                            continue
+                        }
 
                         result.push("<object>")
                         result.push(`<name>${className}</name>`)
@@ -1037,7 +1059,11 @@
 
                 for (let className in bboxes[imageName]) {
                     for (let i = 0; i < bboxes[imageName][className].length; i++) {
-                        const bbox = bboxes[imageName][className][i]
+                        const bbox = clampBbox(bboxes[imageName][className][i], image)
+
+                        if (bbox === null) {
+                            continue
+                        }
 
                         const segmentation = [[
                             bbox.x, bbox.y,
