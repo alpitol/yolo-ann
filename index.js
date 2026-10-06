@@ -730,35 +730,65 @@
     
                     reader.addEventListener("load", () => {
                         if (extension === "txt" || extension === "xml" || extension === "json") {
-                            storeBbox(files[i].name, reader.result)
+                            try {
+                                storeBbox(files[i].name, reader.result)
+                            } catch (error) {
+                                alert(`Could not read ${files[i].name}: ${error.message}`)
+                            }
+
                             refreshCanvas()
                         } else {
                             const zip = new JSZip()
     
                             zip.loadAsync(reader.result)
                                 .then((result) => {
-                                    const entries = Object.keys(result.files)
-                                        .filter((filename) => !result.files[filename].dir)
+                                    // Skip folders and macOS metadata (__MACOSX/, ._name)
+                                    const entries = Object.keys(result.files).filter((filename) =>
+                                        !result.files[filename].dir && !filename.startsWith("__MACOSX/") &&
+                                        !filename.split("/").pop().startsWith("._"))
+                                    const failed = []
 
                                     let remaining = entries.length
+
+                                    // Counts failed entries too, so the canvas is always redrawn at the end
+                                    const entryDone = () => {
+                                        if (--remaining > 0) {
+                                            return
+                                        }
+
+                                        if (failed.length > 0) {
+                                            console.warn(`Could not read from ${files[i].name}:`, failed)
+                                            alert(`Could not read ${failed.length} file(s) from ${files[i].name}:\n\n` +
+                                                failed.slice(0, 10).join("\n"))
+                                        }
+
+                                        refreshCanvas()
+                                    }
+
+                                    if (remaining === 0) {
+                                        refreshCanvas()
+                                    }
 
                                     entries.forEach((filename) => {
                                         result.file(filename).async("string")
                                             .then((text) => {
-                                                // Match labels to images by file name, whatever folder they are in
-                                                storeBbox(filename.split("/").pop(), text)
-
-                                                if (--remaining === 0) {
-                                                    refreshCanvas()
+                                                try {
+                                                    // Match labels to images by file name, whatever folder they are in
+                                                    storeBbox(filename.split("/").pop(), text)
+                                                } catch (error) {
+                                                    failed.push(`${filename}: ${error.message}`)
                                                 }
-                                            })
-                                            .catch((error) => {
-                                                console.warn(`Could not read ${filename} from ${files[i].name}:`, error)
+
+                                                entryDone()
+                                            }, (error) => {
+                                                failed.push(`${filename}: ${error.message}`)
+                                                entryDone()
                                             })
                                     })
                                 })
                                 .catch((error) => {
                                     alert(`Could not read ${files[i].name} as a zip archive: ${error.message}`)
+                                    refreshCanvas()
                                 })
                         }
                     })
