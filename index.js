@@ -441,9 +441,12 @@
                     const nameParts = files[i].name.split(".")
     
                     if (extensions.indexOf(nameParts[nameParts.length - 1]) !== -1) {
+                        // Position in the image list; skipped non-image files must not leave gaps
+                        const index = imageList.length
+
                         images[files[i].name] = {
                             meta: files[i],
-                            index: i
+                            index: index
                         }
     
                         const option = document.createElement("option")
@@ -451,7 +454,7 @@
                         option.value = files[i].name
                         option.textContent = files[i].name
     
-                        if (i === 0) {
+                        if (index === 0) {
                             option.selected = true
                         }
     
@@ -502,6 +505,7 @@
         images = {}
         bboxes = {}
         currentImage = null
+        imageListIndex = 0
     }
 
     const setCurrentImage = (imageInformationContainerID, imageFile) => {
@@ -1244,7 +1248,8 @@
 
             for (let imageName in images) {
                 if (imageName.indexOf(value) !== -1) {
-                    document.getElementById(imageListContainerID).selectedIndex = images[imageName].index
+                    imageListIndex = images[imageName].index
+                    document.getElementById(imageListContainerID).selectedIndex = imageListIndex
 
                     setCurrentImage(imageInformationContainerID, images[imageName])
 
