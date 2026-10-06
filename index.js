@@ -716,7 +716,7 @@
                 for (let i = 0; i < files.length; i++) {
                     const reader = new FileReader()
     
-                    const extension = files[i].name.split(".").pop()
+                    const extension = files[i].name.split(".").pop().toLowerCase()
     
                     reader.addEventListener("load", () => {
                         if (extension === "txt" || extension === "xml" || extension === "json") {
@@ -756,11 +756,11 @@
         let image = null
         let bbox = null
 
-        const extension = filename.split(".").pop()
+        const extension = filename.split(".").pop().toLowerCase()
 
         if (extension === "txt" || extension === "xml") {
             for (let i = 0; i < extensions.length; i++) {
-                const imageName = filename.replace(`.${extension}`, `.${extensions[i]}`)
+                const imageName = `${filename.slice(0, -(extension.length + 1))}.${extensions[i]}`
 
                 if (typeof images[imageName] !== "undefined") {
                     image = images[imageName]
@@ -847,7 +847,7 @@
                     }
                 }
             }
-        } else {
+        } else if (extension === "json") {
             const json = JSON.parse(text)
             let unmatched = 0
 
