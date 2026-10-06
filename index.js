@@ -966,7 +966,8 @@
             return
         }
 
-        console.warn(`${format} export: skipped ${skipped.length} annotated image(s) not in the loaded image set:`, skipped)
+        console.warn(`${format} export: skipped ${skipped.length} annotated image(s) not in the loaded image set:`,
+            skipped)
 
         const shown = skipped.slice(0, 10).join("\n")
         const more = skipped.length > 10 ? `\n...and ${skipped.length - 10} more` : ""
