@@ -135,6 +135,13 @@
 
         canvas.on('selection:created', changeCurrentBBox)
         canvas.on('selection:updated', changeCurrentBBox)
+        // Otherwise Delete would still remove the last selected bbox's data while its rect stays on the canvas
+        canvas.on('selection:cleared', () => {
+            if (currentBBox !== null) {
+                currentBBox.bbox.marked = false
+                currentBBox = null
+            }
+        })
     }
 
     const changeCurrentBBox = (options) => {
