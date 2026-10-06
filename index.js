@@ -686,6 +686,7 @@
 
         classes = {}
         currentClass = null
+        classListIndex = 0
     }
 
     const setCurrentClass = (classesListContainerID) => {
