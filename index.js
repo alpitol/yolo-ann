@@ -880,6 +880,33 @@
             `(see console for the full list):\n\n${shown}${more}`)
     }
 
+    // Tallies boxes whose class isn't in the loaded class list (e.g. after loading another classes file)
+    const isUnknownClass = (className, classBboxes, unknownClasses) => {
+        if (typeof classes[className] !== "undefined") {
+            return false
+        }
+
+        if (classBboxes.length > 0) {
+            unknownClasses[className] = (unknownClasses[className] || 0) + classBboxes.length
+        }
+
+        return true
+    }
+
+    const reportUnknownClasses = (format, unknownClasses) => {
+        const names = Object.keys(unknownClasses)
+
+        if (names.length === 0) {
+            return
+        }
+
+        const list = names.map((name) => `${name} (${unknownClasses[name]} box(es))`).join("\n")
+
+        console.warn(`${format} export: skipped boxes with classes not in the loaded class list:`, unknownClasses)
+
+        alert(`${format} export: skipped boxes whose class is not in the loaded class list:\n\n${list}`)
+    }
+
     // Clips a bbox to the image bounds without modifying it; returns null if nothing of it lies inside the image
     const clampBbox = (bbox, image) => {
         const x1 = Math.max(0, Math.min(bbox.x, bbox.x + bbox.width))
@@ -898,6 +925,7 @@
         document.getElementById(saveBBoxesContainerID).addEventListener("click", () => {
             const zip = new JSZip()
             const skipped = []
+            const unknownClasses = {}
 
             for (let imageName in bboxes) {
                 const image = resolveImage(imageName, skipped)
@@ -913,6 +941,10 @@
                 const result = []
 
                 for (let className in bboxes[imageName]) {
+                    if (isUnknownClass(className, bboxes[imageName][className], unknownClasses)) {
+                        continue
+                    }
+
                     for (let i = 0; i < bboxes[imageName][className].length; i++) {
                         const bbox = clampBbox(bboxes[imageName][className][i], image)
 
@@ -934,6 +966,7 @@
             }
 
             reportSkipped("YOLO", skipped)
+            reportUnknownClasses("YOLO", unknownClasses)
 
             zip.generateAsync({type: "blob"})
                 .then((blob) => {
@@ -1049,6 +1082,7 @@
 
             let id = 0
             const skipped = []
+            const unknownClasses = {}
 
             for (let imageName in bboxes) {
                 const image = resolveImage(imageName, skipped)
@@ -1058,6 +1092,10 @@
                 }
 
                 for (let className in bboxes[imageName]) {
+                    if (isUnknownClass(className, bboxes[imageName][className], unknownClasses)) {
+                        continue
+                    }
+
                     for (let i = 0; i < bboxes[imageName][className].length; i++) {
                         const bbox = clampBbox(bboxes[imageName][className][i], image)
 
@@ -1089,6 +1127,7 @@
             zip.file("coco.json", JSON.stringify(result))
 
             reportSkipped("COCO", skipped)
+            reportUnknownClasses("COCO", unknownClasses)
 
             zip.generateAsync({type: "blob"})
                 .then((blob) => {
