@@ -775,7 +775,11 @@
                         const rows = text.split(/[\r\n]+/)
 
                         for (let i = 0; i < rows.length; i++) {
-                            const cols = rows[i].split(" ")
+                            const cols = rows[i].trim().split(/\s+/)
+
+                            if (cols.length < 5) {
+                                continue
+                            }
 
                             cols[0] = parseInt(cols[0])
 
@@ -785,11 +789,12 @@
                                         bbox[className] = []
                                     }
 
-                                    // Reverse engineer actual position and dimensions from yolo format
-                                    const width = Math.floor(cols[3] * image.width)
-                                    const x = Math.floor(cols[1] * image.width - width * 0.5)
-                                    const height = Math.floor(cols[4] * image.height)
-                                    const y = Math.floor(cols[2] * image.height - height * 0.5)
+                                    // Reverse engineer actual position and dimensions from yolo format.
+                                    // Not rounded, so that loading and saving again gives the same values.
+                                    const width = parseFloat(cols[3]) * image.width
+                                    const x = parseFloat(cols[1]) * image.width - width * 0.5
+                                    const height = parseFloat(cols[4]) * image.height
+                                    const y = parseFloat(cols[2]) * image.height - height * 0.5
 
                                     bbox[className].push({
                                         x: x,
