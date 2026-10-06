@@ -1221,6 +1221,14 @@
         const classList = document.getElementById(classListContainerID)
     
         document.addEventListener("keydown", (event) => {
+            const target = event.target
+
+            // Leave Delete/arrow keys to the field while typing (image search, VOC folder)
+            if (target && (target.tagName === "TEXTAREA" ||
+                (target.tagName === "INPUT" && /^(text|search)$/i.test(target.type)))) {
+                return
+            }
+
             const key = event.keyCode || event.charCode
             // Delete
             if (key === 46 || (key === 8 && event.metaKey === true)) {
