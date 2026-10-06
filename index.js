@@ -174,6 +174,10 @@
     }
 
     const refreshCanvas = () => {
+        if (currentImage === null) {
+            return
+        }
+
         canvas.clear()
         drawImageScratch(currentImage, canvas)
         // drawNewBbox(context)
@@ -721,20 +725,36 @@
                     reader.addEventListener("load", () => {
                         if (extension === "txt" || extension === "xml" || extension === "json") {
                             storeBbox(files[i].name, reader.result)
+                            refreshCanvas()
                         } else {
                             const zip = new JSZip()
     
                             zip.loadAsync(reader.result)
                                 .then((result) => {
-                                    for (let filename in result.files) {
+                                    const entries = Object.keys(result.files)
+                                        .filter((filename) => !result.files[filename].dir)
+
+                                    let remaining = entries.length
+
+                                    entries.forEach((filename) => {
                                         result.file(filename).async("string")
                                             .then((text) => {
-                                                storeBbox(filename, text)
+                                                // Match labels to images by file name, whatever folder they are in
+                                                storeBbox(filename.split("/").pop(), text)
+
+                                                if (--remaining === 0) {
+                                                    refreshCanvas()
+                                                }
                                             })
-                                    }
+                                            .catch((error) => {
+                                                console.warn(`Could not read ${filename} from ${files[i].name}:`, error)
+                                            })
+                                    })
+                                })
+                                .catch((error) => {
+                                    alert(`Could not read ${files[i].name} as a zip archive: ${error.message}`)
                                 })
                         }
-                        refreshCanvas()
                     })
     
                     if (extension === "txt" || extension === "xml"  || extension === "json") {
