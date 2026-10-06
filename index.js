@@ -1238,6 +1238,21 @@
 
             if (item) {
                 bboxes = JSON.parse(item)
+                currentBBox = null
+
+                // The backup is shared by all image sets, so it may hold boxes for images that aren't loaded
+                const unmatched = Object.keys(bboxes).filter((imageName) => typeof images[imageName] === "undefined" &&
+                    Object.values(bboxes[imageName]).some((classBboxes) => classBboxes.length > 0))
+
+                if (unmatched.length > 0) {
+                    const more = unmatched.length > 10 ? `\n...and ${unmatched.length - 10} more` : ""
+
+                    console.warn("Restored boxes for images that are not loaded:", unmatched)
+                    alert(`Restored boxes for ${unmatched.length} image(s) that are not in the loaded image set. ` +
+                        `They are kept, but skipped on export:\n\n${unmatched.slice(0, 10).join("\n")}${more}`)
+                }
+
+                refreshCanvas()
             }
         })
     }
