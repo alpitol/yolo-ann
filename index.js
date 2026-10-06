@@ -907,6 +907,13 @@
         alert(`${format} export: skipped boxes whose class is not in the loaded class list:\n\n${list}`)
     }
 
+    const escapeXml = (value) => String(value)
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&apos;")
+
     // Clips a bbox to the image bounds without modifying it; returns null if nothing of it lies inside the image
     const clampBbox = (bbox, image) => {
         const x1 = Math.max(0, Math.min(bbox.x, bbox.x + bbox.width))
@@ -996,8 +1003,8 @@
                 const result = [
                     "<?xml version=\"1.0\"?>",
                     "<annotation>",
-                    `<folder>${folderPath}</folder>`,
-                    `<filename>${imageName}</filename>`,
+                    `<folder>${escapeXml(folderPath)}</folder>`,
+                    `<filename>${escapeXml(imageName)}</filename>`,
                     "<path/>",
                     "<source>",
                     "<database>Unknown</database>",
@@ -1019,17 +1026,17 @@
                         }
 
                         result.push("<object>")
-                        result.push(`<name>${className}</name>`)
+                        result.push(`<name>${escapeXml(className)}</name>`)
                         result.push("<pose>Unspecified</pose>")
                         result.push("<truncated>0</truncated>")
                         result.push("<occluded>0</occluded>")
                         result.push("<difficult>0</difficult>")
 
                         result.push("<bndbox>")
-                        result.push(`<xmin>${bbox.x}</xmin>`)
-                        result.push(`<ymin>${bbox.y}</ymin>`)
-                        result.push(`<xmax>${bbox.x + bbox.width}</xmax>`)
-                        result.push(`<ymax>${bbox.y + bbox.height}</ymax>`)
+                        result.push(`<xmin>${Math.round(bbox.x)}</xmin>`)
+                        result.push(`<ymin>${Math.round(bbox.y)}</ymin>`)
+                        result.push(`<xmax>${Math.round(bbox.x + bbox.width)}</xmax>`)
+                        result.push(`<ymax>${Math.round(bbox.y + bbox.height)}</ymax>`)
                         result.push("</bndbox>")
 
                         result.push("</object>")
