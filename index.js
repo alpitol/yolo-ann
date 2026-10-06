@@ -880,7 +880,8 @@
 
                 for (let j = 0; j < json.images.length; j++) {
                     if (json.annotations[i].image_id === json.images[j].id) {
-                        imageName = json.images[j].file_name
+                        // file_name often includes a folder (e.g. "images/a.jpg"); match by name only
+                        imageName = String(json.images[j].file_name).split(/[\\/]/).pop()
 
                         if (typeof images[imageName] !== "undefined") {
                             image = images[imageName]
