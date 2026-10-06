@@ -449,7 +449,7 @@
                         const option = document.createElement("option")
     
                         option.value = files[i].name
-                        option.innerHTML = files[i].name
+                        option.textContent = files[i].name
     
                         if (i === 0) {
                             option.selected = true
@@ -545,7 +545,7 @@
         imageList.addEventListener("change", () => {
             imageListIndex = imageList.selectedIndex
 
-            setCurrentImage(imageInformationContainerID, images[imageList.options[imageListIndex].innerHTML])
+            setCurrentImage(imageInformationContainerID, images[imageList.options[imageListIndex].value])
         })
     }
 
@@ -583,7 +583,7 @@
                                     const option = document.createElement("option")
     
                                     option.value = i
-                                    option.innerHTML = rows[i]
+                                    option.textContent = rows[i]
     
                                     if (i === 0) {
                                         option.selected = true
@@ -1180,7 +1180,7 @@
                     }
                     imageList.options[imageListIndex].selected = true
                     imageList.selectedIndex = imageListIndex
-                    setCurrentImage(imageInformationContainerID, images[imageList.options[imageListIndex].innerHTML])
+                    setCurrentImage(imageInformationContainerID, images[imageList.options[imageListIndex].value])
                     document.body.style.cursor = "default"
                 }
                 event.preventDefault()
@@ -1196,7 +1196,7 @@
                     }
                     imageList.options[imageListIndex].selected = true
                     imageList.selectedIndex = imageListIndex
-                    setCurrentImage(imageInformationContainerID, images[imageList.options[imageListIndex].innerHTML])
+                    setCurrentImage(imageInformationContainerID, images[imageList.options[imageListIndex].value])
                     document.body.style.cursor = "default"
                 }
                 event.preventDefault()
