@@ -464,6 +464,7 @@
                 }
     
                 const imageArray = Object.keys(images)
+                const imageSet = images // Loads from an earlier selection must not touch a newer image set
                 const failed = []
     
                 let async = imageArray.length
@@ -509,6 +510,10 @@
                         const imageObject = new Image()
     
                         imageObject.addEventListener("load", (event) => {
+                            if (images !== imageSet) {
+                                return
+                            }
+
                             images[image].width = event.target.width
                             images[image].height = event.target.height
     
@@ -516,6 +521,10 @@
                         })
 
                         imageObject.addEventListener("error", () => {
+                            if (images !== imageSet) {
+                                return
+                            }
+
                             failed.push(image)
 
                             imageDone()
