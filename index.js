@@ -47,6 +47,7 @@
     const extensions = ["jpg", "jpeg", "png", "JPG", "JPEG", "PNG", "bmp", "BMP"]
 
     let currentImage = null
+    let currentImageRequest = 0 // Incremented per image switch so stale async loads can be ignored
     let currentClass = null
     let currentBBox = null
     let imageListIndex = 0
@@ -505,6 +506,7 @@
         images = {}
         bboxes = {}
         currentImage = null
+        currentImageRequest++
         imageListIndex = 0
     }
 
@@ -513,13 +515,22 @@
             resetCanvasPlacement()
         }
     
+        const request = ++currentImageRequest
         const reader = new FileReader()
     
         reader.addEventListener("load", () => {
+            if (request !== currentImageRequest) {
+                return
+            }
+
             const dataUrl = reader.result
             const imageObject = new Image()
     
             imageObject.addEventListener("load", () => {
+                if (request !== currentImageRequest) {
+                    return
+                }
+
                 currentImage = {
                     name: imageFile.meta.name,
                     object: imageObject,
