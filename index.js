@@ -1240,7 +1240,7 @@
                 }
                 event.preventDefault()
             }
-            // Arrow right
+            // Arrow left
             if (key === 37) {
                 if (imageList.length > 1) {
                     imageList.options[imageListIndex].selected = false
@@ -1256,7 +1256,7 @@
                 }
                 event.preventDefault()
             }
-            // Arrow left
+            // Arrow right
             if (key === 39) {
                 if (imageList.length > 1) {
                     imageList.options[imageListIndex].selected = false
