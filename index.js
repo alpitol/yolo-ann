@@ -110,7 +110,7 @@
             listenBboxRestore(restoreBboxesID)
             listenKeyboard(imageInformationID, imageListID, classListID)
             listenImageSearch(imageInformationID, imageSearchID, imageListID)
-            listenImageCrop(canvasID, cropImagesID)
+            listenImageCrop(cropImagesID)
         }
     }
 
@@ -1208,75 +1208,102 @@
         })
     }
 
-    const listenImageCrop = (canvasContainerID, cropImagesContainerID) => {
+    const listenImageCrop = (cropImagesContainerID) => {
         document.getElementById(cropImagesContainerID).addEventListener("click", () => {
             const zip = new JSZip()
-
-            let x = 0
+            const skipped = []
+            const crops = []
 
             for (let imageName in bboxes) {
-                const image = images[imageName]
+                const image = resolveImage(imageName, skipped)
+
+                if (image === null) {
+                    continue
+                }
 
                 for (let className in bboxes[imageName]) {
                     for (let i = 0; i < bboxes[imageName][className].length; i++) {
-                        x++
+                        const bbox = clampBbox(bboxes[imageName][className][i], image)
 
-                        if (x === 1) {
-                            document.body.style.cursor = "wait" // Mark as busy
+                        if (bbox !== null) {
+                            crops.push({imageName, image, className, i, bbox})
                         }
-
-                        const bbox = bboxes[imageName][className][i]
-
-                        const reader = new FileReader()
-
-                        reader.addEventListener("load", () => {
-                            const dataUrl = reader.result
-                            const imageObject = new Image()
-
-                            imageObject.addEventListener("load", () => {
-                                const temporaryCanvas = document.createElement(canvasContainerID)
-
-                                temporaryCanvas.style.display = "none"
-                                temporaryCanvas.width = bbox.width
-                                temporaryCanvas.height = bbox.height
-
-                                temporaryCanvas.getContext("2d").drawImage(
-                                    imageObject,
-                                    bbox.x,
-                                    bbox.y,
-                                    bbox.width,
-                                    bbox.height,
-                                    0,
-                                    0,
-                                    bbox.width,
-                                    bbox.height
-                                )
-
-                                temporaryCanvas.toBlob((blob) => {
-                                    const imageNameParts = imageName.split(".")
-
-                                    imageNameParts[imageNameParts.length - 2] += `-${className}-${i}`
-
-                                    zip.file(imageNameParts.join("."), blob)
-
-                                    if (--x === 0) {
-                                        document.body.style.cursor = "default"
-
-                                        zip.generateAsync({type: "blob"})
-                                            .then((blob) => {
-                                                saveAs(blob, "crops.zip")
-                                            })
-                                    }
-                                }, image.meta.type)
-                            })
-
-                            imageObject.src = dataUrl
-                        })
-
-                        reader.readAsDataURL(image.meta)
                     }
                 }
             }
+
+            reportSkipped("Crop", skipped)
+
+            let pending = crops.length
+
+            if (pending === 0) {
+                return
+            }
+
+            document.body.style.cursor = "wait" // Mark as busy
+
+            const cropDone = () => {
+                if (--pending === 0) {
+                    document.body.style.cursor = "default"
+
+                    zip.generateAsync({type: "blob"})
+                        .then((blob) => {
+                            saveAs(blob, "crops.zip")
+                        })
+                }
+            }
+
+            crops.forEach(({imageName, image, className, i, bbox}) => {
+                const reader = new FileReader()
+
+                reader.addEventListener("load", () => {
+                    const dataUrl = reader.result
+                    const imageObject = new Image()
+
+                    imageObject.addEventListener("error", () => {
+                        console.warn(`Crop: could not decode ${imageName}`)
+                        cropDone()
+                    })
+
+                    imageObject.addEventListener("load", () => {
+                        const temporaryCanvas = document.createElement("canvas")
+
+                        temporaryCanvas.style.display = "none"
+                        temporaryCanvas.width = bbox.width
+                        temporaryCanvas.height = bbox.height
+
+                        temporaryCanvas.getContext("2d").drawImage(
+                            imageObject,
+                            bbox.x,
+                            bbox.y,
+                            bbox.width,
+                            bbox.height,
+                            0,
+                            0,
+                            bbox.width,
+                            bbox.height
+                        )
+
+                        temporaryCanvas.toBlob((blob) => {
+                            const imageNameParts = imageName.split(".")
+
+                            imageNameParts[imageNameParts.length - 2] += `-${className}-${i}`
+
+                            if (blob !== null) {
+                                zip.file(imageNameParts.join("."), blob)
+                            } else {
+                                console.warn(`Crop: empty crop ${imageNameParts.join(".")} skipped`)
+                            }
+
+                            cropDone()
+                        }, image.meta.type)
+                    })
+
+                    imageObject.src = dataUrl
+                })
+
+                reader.readAsDataURL(image.meta)
+            })
         })
     }
 })()
