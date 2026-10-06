@@ -645,14 +645,17 @@
                                 rows[i] = rows[i].trim()
     
                                 if (rows[i] !== "") {
-                                    classes[rows[i]] = i
+                                    // Ids count non-empty rows only, so blank lines don't shift them
+                                    const id = classList.length
+
+                                    classes[rows[i]] = id
     
                                     const option = document.createElement("option")
     
-                                    option.value = i
+                                    option.value = id
                                     option.textContent = rows[i]
     
-                                    if (i === 0) {
+                                    if (id === 0) {
                                         option.selected = true
                                         currentClass = rows[i]
                                     }
@@ -661,7 +664,9 @@
                                 }
                             }
     
-                            setCurrentClass(classesListContainerID)
+                            if (classList.length > 0) {
+                                setCurrentClass(classesListContainerID)
+                            }
     
                             if (Object.keys(images).length > 0) {
                                 document.getElementById(bboxesContainerID).disabled = false
