@@ -464,8 +464,43 @@
                 }
     
                 const imageArray = Object.keys(images)
+                const failed = []
     
                 let async = imageArray.length
+
+                if (async === 0) {
+                    document.body.style.cursor = "default"
+                }
+
+                const imageDone = () => {
+                    if (--async !== 0) {
+                        return
+                    }
+
+                    document.body.style.cursor = "default"
+
+                    if (failed.length > 0) {
+                        const more = failed.length > 10 ? `\n...and ${failed.length - 10} more` : ""
+
+                        console.warn(`Could not decode ${failed.length} image(s):`, failed)
+                        alert(`Could not load ${failed.length} image(s); they can't be annotated or exported:\n\n` +
+                            `${failed.slice(0, 10).join("\n")}${more}`)
+                    }
+
+                    const firstLoaded = imageArray.find((name) => typeof images[name].width !== "undefined")
+
+                    if (typeof firstLoaded !== "undefined") {
+                        imageListIndex = images[firstLoaded].index
+                        imageList.selectedIndex = imageListIndex
+
+                        setCurrentImage(imageInformationContainerID, images[firstLoaded])
+                    }
+
+                    if (Object.keys(classes).length > 0) {
+                        document.getElementById(bboxesContainerID).disabled = false
+                        document.getElementById(restoreBboxesContainerID).disabled = false
+                    }
+                }
     
                 for (let image in images) {
                     const reader = new FileReader()
@@ -477,16 +512,13 @@
                             images[image].width = event.target.width
                             images[image].height = event.target.height
     
-                            if (--async === 0) {
-                                document.body.style.cursor = "default"
-    
-                                setCurrentImage(imageInformationContainerID, images[imageArray[0]])
-    
-                                if (Object.keys(classes).length > 0) {
-                                    document.getElementById(bboxesContainerID).disabled = false
-                                    document.getElementById(restoreBboxesContainerID).disabled = false
-                                }
-                            }
+                            imageDone()
+                        })
+
+                        imageObject.addEventListener("error", () => {
+                            failed.push(image)
+
+                            imageDone()
                         })
     
                         imageObject.src = reader.result
