@@ -47,7 +47,14 @@ hr {
     margin-top: 10px;
 }
 
-#imageList, #classList, #description {
+#imageList {
+    width: 100%;
+    margin-top: 10px;
+    margin-bottom: 10px;
+    height: 12%;
+}
+
+#classList, #description {
     width: 100%;
     margin-top: 10px;
     margin-bottom: 10px;
