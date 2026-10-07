@@ -536,11 +536,44 @@
     }
 
     const listenImageLoad = (imagesContainerID, imageListContainerID) => {
-        document.getElementById(imagesContainerID).addEventListener("change", async (event) => {
+        const imagesElement = document.getElementById(imagesContainerID)
+        let waitingForFiles = false // The picker was opened and its files haven't arrived yet
+        let reading = false // Images of the current selection are being read
+
+        const stopWaiting = () => {
+            if (waitingForFiles && !reading) {
+                showImageProgress(null)
+            }
+
+            waitingForFiles = false
+        }
+
+        // The browser may take a long time to pass on many files after the picker closes (e.g. a Flatpak
+        // browser exporting each file through its document portal), and the page gets nothing until then
+        imagesElement.addEventListener("click", () => {
+            waitingForFiles = true
+
+            if (!reading) {
+                showImageProgress("waiting")
+            }
+        })
+        imagesElement.addEventListener("cancel", stopWaiting)
+        // Fallback for browsers that send neither change nor cancel, e.g. when the same files are picked again.
+        // Clicking the input or pressing Enter on it comes before its click event, which starts waiting again.
+        document.addEventListener("pointerdown", stopWaiting)
+        document.addEventListener("keydown", stopWaiting)
+
+        imagesElement.addEventListener("change", async (event) => {
             const imageList = document.getElementById(imageListContainerID)
             const files = event.target.files
 
+            waitingForFiles = false
+
             if (files.length === 0) {
+                if (!reading) {
+                    showImageProgress(null)
+                }
+
                 return
             }
 
@@ -577,12 +610,14 @@
 
             if (imageNames.length === 0) {
                 document.body.style.cursor = "default" // An earlier, superseded load may have set "wait"
+                reading = false
                 showImageProgress(null)
 
                 return
             }
 
             document.body.style.cursor = "wait"
+            reading = true
             showImageProgress(0, imageNames.length, 0)
 
             // Decode every image once to learn its size, which the annotation formats need
@@ -612,6 +647,7 @@
             }
 
             document.body.style.cursor = "default"
+            reading = false
             showImageProgress(null)
 
             if (failed.length > 0) {
@@ -632,9 +668,12 @@
         })
     }
 
-    // Shows "Reading images: done / total" under the Images picker; pass null to hide it
+    // Shows a spinner and "Reading images: done / total" under the Images picker. Pass "waiting" while the
+    // browser hasn't passed on the picked files yet (count unknown), or null to hide it.
     const showImageProgress = (done, total, failedCount) => {
         const container = document.getElementById(imageProgressID)
+        const bar = container.querySelector("progress")
+        const text = container.querySelector(".hint")
 
         if (done === null) {
             container.hidden = true
@@ -642,12 +681,20 @@
             return
         }
 
-        const bar = container.querySelector("progress")
+        if (done === "waiting") {
+            bar.hidden = true
+            text.textContent = "Waiting for the selected files..."
+            container.hidden = false
+
+            return
+        }
+
         const failedText = failedCount > 0 ? ` (${failedCount} failed)` : ""
 
         bar.max = total
         bar.value = done
-        container.querySelector("span").textContent = `Reading images: ${done} / ${total}${failedText}`
+        bar.hidden = false
+        text.textContent = `Reading images: ${done} / ${total}${failedText}`
         container.hidden = false
     }
 

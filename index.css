@@ -123,6 +123,22 @@ hr {
 }
 
 /* .row's display: flex would otherwise override the hidden attribute */
-.row[hidden] {
+.row[hidden], progress[hidden] {
     display: none;
+}
+
+/* A transform animation keeps spinning even while the page's scripts are busy */
+.spinner {
+    width: 12px;
+    height: 12px;
+    border: 3px solid #ccc;
+    border-top-color: #4a90d9;
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+    to {
+        transform: rotate(360deg);
+    }
 }
