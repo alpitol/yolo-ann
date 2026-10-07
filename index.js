@@ -442,111 +442,86 @@
     }
 
     const listenImageLoad = (imageInformationContainerID, imagesContainerID, imageListContainerID, bboxesContainerID, restoreBboxesContainerID) => {
-        document.getElementById(imagesContainerID).addEventListener("change", (event) => {
+        document.getElementById(imagesContainerID).addEventListener("change", async (event) => {
             const imageList = document.getElementById(imageListContainerID)
-    
             const files = event.target.files
-    
-            if (files.length > 0) {
-                resetImageList(imageListContainerID)
-    
-                document.body.style.cursor = "wait"
-    
-                for (let i = 0; i < files.length; i++) {
-                    if (Formats.isImageFile(files[i].name)) {
-                        // Position in the image list; skipped non-image files must not leave gaps
-                        const index = imageList.length
 
-                        images[files[i].name] = {
-                            meta: files[i],
-                            index: index
-                        }
-    
-                        const option = document.createElement("option")
-    
-                        option.value = files[i].name
-                        option.textContent = files[i].name
-    
-                        if (index === 0) {
-                            option.selected = true
-                        }
-    
-                        imageList.appendChild(option)
+            if (files.length === 0) {
+                return
+            }
+
+            resetImageList(imageListContainerID)
+
+            for (let i = 0; i < files.length; i++) {
+                if (Formats.isImageFile(files[i].name)) {
+                    // Position in the image list; skipped non-image files must not leave gaps
+                    const index = imageList.length
+
+                    images[files[i].name] = {
+                        meta: files[i],
+                        index: index
                     }
+
+                    const option = document.createElement("option")
+
+                    option.value = files[i].name
+                    option.textContent = files[i].name
+
+                    if (index === 0) {
+                        option.selected = true
+                    }
+
+                    imageList.appendChild(option)
                 }
-    
-                const imageArray = Object.keys(images)
-                const imageSet = images // Loads from an earlier selection must not touch a newer image set
-                const failed = []
-    
-                let async = imageArray.length
+            }
 
-                if (async === 0) {
-                    document.body.style.cursor = "default"
-                }
+            const imageSet = images // Loads from an earlier selection must not touch a newer image set
+            const imageNames = Object.keys(imageSet)
+            const failed = []
 
-                const imageDone = () => {
-                    if (--async !== 0) {
-                        return
-                    }
+            if (imageNames.length === 0) {
+                document.body.style.cursor = "default" // An earlier, superseded load may have set "wait"
 
-                    document.body.style.cursor = "default"
+                return
+            }
 
-                    if (failed.length > 0) {
-                        const more = failed.length > 10 ? `\n...and ${failed.length - 10} more` : ""
+            document.body.style.cursor = "wait"
 
-                        console.warn(`Could not decode ${failed.length} image(s):`, failed)
-                        alert(`Could not load ${failed.length} image(s); they can't be annotated or exported:\n\n` +
-                            `${failed.slice(0, 10).join("\n")}${more}`)
-                    }
+            // Decode every image once to learn its size, which the annotation formats need
+            await Promise.all(imageNames.map((imageName) => loadImage(imageSet[imageName].meta)
+                .then((imageObject) => {
+                    imageSet[imageName].width = imageObject.width
+                    imageSet[imageName].height = imageObject.height
+                }, () => {
+                    failed.push(imageName)
+                })))
 
-                    const firstLoaded = imageArray.find((name) => typeof images[name].width !== "undefined")
+            if (images !== imageSet) {
+                return
+            }
 
-                    if (typeof firstLoaded !== "undefined") {
-                        imageListIndex = images[firstLoaded].index
-                        imageList.selectedIndex = imageListIndex
+            document.body.style.cursor = "default"
 
-                        setCurrentImage(imageInformationContainerID, images[firstLoaded])
-                    }
+            if (failed.length > 0) {
+                const more = failed.length > 10 ? `\n...and ${failed.length - 10} more` : ""
 
-                    if (Object.keys(classes).length > 0) {
-                        document.getElementById(bboxesContainerID).disabled = false
-                        document.getElementById(restoreBboxesContainerID).disabled = false
-                    }
-                }
-    
-                for (let image in images) {
-                    const reader = new FileReader()
-    
-                    reader.addEventListener("load", () => {
-                        const imageObject = new Image()
-    
-                        imageObject.addEventListener("load", (event) => {
-                            if (images !== imageSet) {
-                                return
-                            }
+                console.warn(`Could not decode ${failed.length} image(s):`, failed)
+                alert(`Could not load ${failed.length} image(s); they can't be annotated or exported:\n\n` +
+                    `${failed.slice(0, 10).join("\n")}${more}`)
+            }
 
-                            images[image].width = event.target.width
-                            images[image].height = event.target.height
-    
-                            imageDone()
-                        })
+            const firstLoaded = imageNames.find((name) => typeof images[name].width !== "undefined")
 
-                        imageObject.addEventListener("error", () => {
-                            if (images !== imageSet) {
-                                return
-                            }
+            if (typeof firstLoaded !== "undefined") {
+                imageListIndex = images[firstLoaded].index
+                imageList.selectedIndex = imageListIndex
 
-                            failed.push(image)
+                setCurrentImage(imageInformationContainerID, images[firstLoaded])
+            }
 
-                            imageDone()
-                        })
-    
-                        imageObject.src = reader.result
-                    })
-    
-                    reader.readAsDataURL(images[image].meta)
-                }
+            if (Object.keys(classes).length > 0) {
+                document.getElementById(bboxesContainerID).disabled = false
+                document.getElementById(restoreBboxesContainerID).disabled = false
             }
         })
     }
@@ -563,48 +538,44 @@
         imageListIndex = 0
     }
 
-    const setCurrentImage = (imageInformationContainerID, imageFile) => {
+    const setCurrentImage = async (imageInformationContainerID, imageFile) => {
         if (resetCanvasOnChange === true) {
             resetCanvasPlacement()
         }
-    
+
         const request = ++currentImageRequest
-        const reader = new FileReader()
-    
-        reader.addEventListener("load", () => {
-            if (request !== currentImageRequest) {
-                return
-            }
 
-            const dataUrl = reader.result
-            const imageObject = new Image()
-    
-            imageObject.addEventListener("load", () => {
-                if (request !== currentImageRequest) {
-                    return
-                }
-
-                currentImage = {
-                    name: imageFile.meta.name,
-                    object: imageObject,
-                    width: imageFile.width,
-                    height: imageFile.height,
-                    scale: 1.0
-                }
-                refreshCanvas()
-            })
-    
-            imageObject.src = dataUrl
-    
-            document.getElementById(imageInformationContainerID).innerHTML = `${imageFile.width}x${imageFile.height}, ${formatBytes(imageFile.meta.size)}`
-        })
-    
-        reader.readAsDataURL(imageFile.meta)
-    
         if (currentBBox !== null) {
             currentBBox.bbox.marked = false // We unmark via reference
             currentBBox = null // and the we delete
         }
+
+        document.getElementById(imageInformationContainerID).innerHTML =
+            `${imageFile.width}x${imageFile.height}, ${formatBytes(imageFile.meta.size)}`
+
+        let imageObject = null
+
+        try {
+            imageObject = await loadImage(imageFile.meta)
+        } catch (error) {
+            console.warn(error.message)
+
+            return
+        }
+
+        // Another image was selected while this one was loading
+        if (request !== currentImageRequest) {
+            return
+        }
+
+        currentImage = {
+            name: imageFile.meta.name,
+            object: imageObject,
+            width: imageFile.width,
+            height: imageFile.height,
+            scale: 1.0
+        }
+        refreshCanvas()
     }
 
     const listenImageSelect = (imageInformationContainerID, imageListContainerID) => {
@@ -624,49 +595,48 @@
             classesElement.value = null
         })
     
-        classesElement.addEventListener("change", (event) => {
+        classesElement.addEventListener("change", async (event) => {
             const files = event.target.files
-    
-            if (files.length > 0) {
-                resetClassList(classesListContainerID)
-    
-                const extension = Formats.extensionOf(files[0].name)
 
-                if (extension === "txt" || extension === "names") {
-                    const reader = new FileReader()
-    
-                    reader.addEventListener("load", () => {
-                        const classList = document.getElementById(classesListContainerID)
+            if (files.length === 0) {
+                return
+            }
 
-                        // Ids count non-empty rows only, so blank lines don't shift them
-                        Formats.parseClasses(reader.result).forEach((className, id) => {
-                            classes[className] = id
+            resetClassList(classesListContainerID)
 
-                            const option = document.createElement("option")
+            const extension = Formats.extensionOf(files[0].name)
 
-                            option.value = id
-                            option.textContent = className
+            if (extension !== "txt" && extension !== "names") {
+                return
+            }
 
-                            if (id === 0) {
-                                option.selected = true
-                                currentClass = className
-                            }
+            const text = await readText(files[0])
+            const classList = document.getElementById(classesListContainerID)
 
-                            classList.appendChild(option)
-                        })
+            // Ids count non-empty rows only, so blank lines don't shift them
+            Formats.parseClasses(text).forEach((className, id) => {
+                classes[className] = id
 
-                        if (classList.length > 0) {
-                            setCurrentClass(classesListContainerID)
-                        }
+                const option = document.createElement("option")
 
-                        if (Object.keys(images).length > 0) {
-                            document.getElementById(bboxesContainerID).disabled = false
-                            document.getElementById(restoreBboxesContainerID).disabled = false
-                        }
-                    })
-    
-                    reader.readAsText(files[0])
+                option.value = id
+                option.textContent = className
+
+                if (id === 0) {
+                    option.selected = true
+                    currentClass = className
                 }
+
+                classList.appendChild(option)
+            })
+
+            if (classList.length > 0) {
+                setCurrentClass(classesListContainerID)
+            }
+
+            if (Object.keys(images).length > 0) {
+                document.getElementById(bboxesContainerID).disabled = false
+                document.getElementById(restoreBboxesContainerID).disabled = false
             }
         })
     }
@@ -707,91 +677,64 @@
             bboxesElement.value = null
         })
     
-        bboxesElement.addEventListener("change", (event) => {
-            const files = event.target.files
-    
-            if (files.length > 0) {
-                resetBboxes()
-    
-                for (let i = 0; i < files.length; i++) {
-                    const reader = new FileReader()
-    
-                    const extension = Formats.extensionOf(files[i].name)
-    
-                    reader.addEventListener("load", () => {
-                        if (extension === "txt" || extension === "xml" || extension === "json") {
-                            try {
-                                storeBbox(files[i].name, reader.result)
-                            } catch (error) {
-                                alert(`Could not read ${files[i].name}: ${error.message}`)
-                            }
+        bboxesElement.addEventListener("change", async (event) => {
+            const files = Array.from(event.target.files)
 
-                            refreshCanvas()
-                        } else {
-                            const zip = new JSZip()
-    
-                            zip.loadAsync(reader.result)
-                                .then((result) => {
-                                    // Skip folders and macOS metadata (__MACOSX/, ._name)
-                                    const entries = Object.keys(result.files).filter((filename) =>
-                                        !result.files[filename].dir && !filename.startsWith("__MACOSX/") &&
-                                        !filename.split("/").pop().startsWith("._"))
-                                    const failed = []
-
-                                    let remaining = entries.length
-
-                                    // Counts failed entries too, so the canvas is always redrawn at the end
-                                    const entryDone = () => {
-                                        if (--remaining > 0) {
-                                            return
-                                        }
-
-                                        if (failed.length > 0) {
-                                            console.warn(`Could not read from ${files[i].name}:`, failed)
-                                            alert(`Could not read ${failed.length} file(s) from ${files[i].name}:\n\n` +
-                                                failed.slice(0, 10).join("\n"))
-                                        }
-
-                                        refreshCanvas()
-                                    }
-
-                                    if (remaining === 0) {
-                                        refreshCanvas()
-                                    }
-
-                                    entries.forEach((filename) => {
-                                        result.file(filename).async("string")
-                                            .then((text) => {
-                                                try {
-                                                    // Match labels to images by file name, whatever folder they are in
-                                                    storeBbox(Formats.baseName(filename), text)
-                                                } catch (error) {
-                                                    failed.push(`${filename}: ${error.message}`)
-                                                }
-
-                                                entryDone()
-                                            }, (error) => {
-                                                failed.push(`${filename}: ${error.message}`)
-                                                entryDone()
-                                            })
-                                    })
-                                })
-                                .catch((error) => {
-                                    alert(`Could not read ${files[i].name} as a zip archive: ${error.message}`)
-                                    refreshCanvas()
-                                })
-                        }
-                    })
-    
-                    if (extension === "txt" || extension === "xml"  || extension === "json") {
-                        reader.readAsText(files[i])
-                    } else {
-                        reader.readAsArrayBuffer(event.target.files[i])
-                    }
-                }
-                
+            if (files.length === 0) {
+                return
             }
+
+            resetBboxes()
+
+            // Each file reports its own errors, so the canvas is always redrawn at the end
+            await Promise.all(files.map(loadAnnotationSource))
+
+            refreshCanvas()
         })
+    }
+
+    // Reads one picked annotation file, or a zip of them
+    const loadAnnotationSource = async (file) => {
+        const extension = Formats.extensionOf(file.name)
+
+        if (extension === "txt" || extension === "xml" || extension === "json") {
+            try {
+                storeBbox(file.name, await readText(file))
+            } catch (error) {
+                alert(`Could not read ${file.name}: ${error.message}`)
+            }
+
+            return
+        }
+
+        let archive = null
+
+        try {
+            archive = await new JSZip().loadAsync(await readArrayBuffer(file))
+        } catch (error) {
+            alert(`Could not read ${file.name} as a zip archive: ${error.message}`)
+
+            return
+        }
+
+        // Skip folders and macOS metadata (__MACOSX/, ._name)
+        const entries = Object.keys(archive.files).filter((filename) => !archive.files[filename].dir &&
+            !filename.startsWith("__MACOSX/") && !Formats.baseName(filename).startsWith("._"))
+        const failed = []
+
+        await Promise.all(entries.map(async (filename) => {
+            try {
+                // Match labels to images by file name, whatever folder they are in
+                storeBbox(Formats.baseName(filename), await archive.file(filename).async("string"))
+            } catch (error) {
+                failed.push(`${filename}: ${error.message}`)
+            }
+        }))
+
+        if (failed.length > 0) {
+            console.warn(`Could not read from ${file.name}:`, failed)
+            alert(`Could not read ${failed.length} file(s) from ${file.name}:\n\n${failed.slice(0, 10).join("\n")}`)
+        }
     }
 
     const resetBboxes = () => {
@@ -1029,78 +972,53 @@
     }
 
     const listenImageCrop = (cropImagesContainerID) => {
-        document.getElementById(cropImagesContainerID).addEventListener("click", () => {
-            const zip = new JSZip()
+        document.getElementById(cropImagesContainerID).addEventListener("click", async () => {
             const {crops, skipped} = Formats.cropRegions(bboxes, images)
+            const decoded = {} // One decode per image, shared by all its crops
+            const files = {}
 
             reportSkipped("Crop", skipped)
 
-            let pending = crops.length
-
-            if (pending === 0) {
+            if (crops.length === 0) {
                 return
             }
 
             document.body.style.cursor = "wait" // Mark as busy
 
-            const cropDone = () => {
-                if (--pending === 0) {
-                    document.body.style.cursor = "default"
+            try {
+                await Promise.all(crops.map(async ({imageName, image, bbox, fileName}) => {
+                    decoded[imageName] = decoded[imageName] || loadImage(image.meta)
 
-                    zip.generateAsync({type: "blob"})
-                        .then((blob) => {
-                            saveAs(blob, "crops.zip")
-                        })
-                }
+                    let imageObject = null
+
+                    try {
+                        imageObject = await decoded[imageName]
+                    } catch (error) {
+                        console.warn(`Crop: could not decode ${imageName}`)
+
+                        return
+                    }
+
+                    const temporaryCanvas = document.createElement("canvas")
+
+                    temporaryCanvas.width = bbox.width
+                    temporaryCanvas.height = bbox.height
+                    temporaryCanvas.getContext("2d").drawImage(imageObject, bbox.x, bbox.y, bbox.width, bbox.height,
+                        0, 0, bbox.width, bbox.height)
+
+                    const blob = await canvasToBlob(temporaryCanvas, image.meta.type)
+
+                    if (blob !== null) {
+                        files[fileName] = blob
+                    } else {
+                        console.warn(`Crop: empty crop ${fileName} skipped`)
+                    }
+                }))
+            } finally {
+                document.body.style.cursor = "default"
             }
 
-            crops.forEach(({imageName, image, bbox, fileName}) => {
-                const reader = new FileReader()
-
-                reader.addEventListener("load", () => {
-                    const dataUrl = reader.result
-                    const imageObject = new Image()
-
-                    imageObject.addEventListener("error", () => {
-                        console.warn(`Crop: could not decode ${imageName}`)
-                        cropDone()
-                    })
-
-                    imageObject.addEventListener("load", () => {
-                        const temporaryCanvas = document.createElement("canvas")
-
-                        temporaryCanvas.style.display = "none"
-                        temporaryCanvas.width = bbox.width
-                        temporaryCanvas.height = bbox.height
-
-                        temporaryCanvas.getContext("2d").drawImage(
-                            imageObject,
-                            bbox.x,
-                            bbox.y,
-                            bbox.width,
-                            bbox.height,
-                            0,
-                            0,
-                            bbox.width,
-                            bbox.height
-                        )
-
-                        temporaryCanvas.toBlob((blob) => {
-                            if (blob !== null) {
-                                zip.file(fileName, blob)
-                            } else {
-                                console.warn(`Crop: empty crop ${fileName} skipped`)
-                            }
-
-                            cropDone()
-                        }, image.meta.type)
-                    })
-
-                    imageObject.src = dataUrl
-                })
-
-                reader.readAsDataURL(image.meta)
-            })
+            downloadZip(files, "crops.zip")
         })
     }
 })()
