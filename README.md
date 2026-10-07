@@ -40,6 +40,13 @@ Fast and efficient BBox annotation for your images in YOLO, and now, VOC/COCO fo
 
 </details>
 
+## Tests
+
+Annotation file reading and writing (`formats.js`) has unit tests without any dependencies:
+
+* in a browser: open `tests/index.html` (runs everything, including VOC import);
+* with Node.js: `node tests/run.js` (VOC import tests are skipped, as Node has no `DOMParser`).
+
 UI should look something like this:
 
 <img src="ui_1.png" width="720">
