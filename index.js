@@ -44,8 +44,6 @@
     const saveBBoxesCOCOID = 'saveCocoBboxes'
     const cropImagesID = 'cropImages'
 
-    const extensions = ["jpg", "jpeg", "png", "JPG", "JPEG", "PNG", "bmp", "BMP"]
-
     let currentImage = null
     let currentImageRequest = 0 // Incremented per image switch so stale async loads can be ignored
     let currentClass = null
@@ -455,9 +453,7 @@
                 document.body.style.cursor = "wait"
     
                 for (let i = 0; i < files.length; i++) {
-                    const nameParts = files[i].name.split(".")
-    
-                    if (extensions.indexOf(nameParts[nameParts.length - 1]) !== -1) {
+                    if (Formats.isImageFile(files[i].name)) {
                         // Position in the image list; skipped non-image files must not leave gaps
                         const index = imageList.length
 
@@ -634,49 +630,38 @@
             if (files.length > 0) {
                 resetClassList(classesListContainerID)
     
-                const nameParts = files[0].name.split(".")
-                if (nameParts[nameParts.length - 1] === "txt" || nameParts[nameParts.length - 1] === "names") {
+                const extension = Formats.extensionOf(files[0].name)
+
+                if (extension === "txt" || extension === "names") {
                     const reader = new FileReader()
     
                     reader.addEventListener("load", () => {
-                        const lines = reader.result
-    
-                        const rows = lines.split(/[\r\n]+/)
-    
-                        if (rows.length > 0) {
-                            const classList = document.getElementById(classesListContainerID)
-    
-                            for (let i = 0; i < rows.length; i++) {
-                                rows[i] = rows[i].trim()
-    
-                                if (rows[i] !== "") {
-                                    // Ids count non-empty rows only, so blank lines don't shift them
-                                    const id = classList.length
+                        const classList = document.getElementById(classesListContainerID)
 
-                                    classes[rows[i]] = id
-    
-                                    const option = document.createElement("option")
-    
-                                    option.value = id
-                                    option.textContent = rows[i]
-    
-                                    if (id === 0) {
-                                        option.selected = true
-                                        currentClass = rows[i]
-                                    }
-    
-                                    classList.appendChild(option)
-                                }
+                        // Ids count non-empty rows only, so blank lines don't shift them
+                        Formats.parseClasses(reader.result).forEach((className, id) => {
+                            classes[className] = id
+
+                            const option = document.createElement("option")
+
+                            option.value = id
+                            option.textContent = className
+
+                            if (id === 0) {
+                                option.selected = true
+                                currentClass = className
                             }
-    
-                            if (classList.length > 0) {
-                                setCurrentClass(classesListContainerID)
-                            }
-    
-                            if (Object.keys(images).length > 0) {
-                                document.getElementById(bboxesContainerID).disabled = false
-                                document.getElementById(restoreBboxesContainerID).disabled = false
-                            }
+
+                            classList.appendChild(option)
+                        })
+
+                        if (classList.length > 0) {
+                            setCurrentClass(classesListContainerID)
+                        }
+
+                        if (Object.keys(images).length > 0) {
+                            document.getElementById(bboxesContainerID).disabled = false
+                            document.getElementById(restoreBboxesContainerID).disabled = false
                         }
                     })
     
@@ -731,7 +716,7 @@
                 for (let i = 0; i < files.length; i++) {
                     const reader = new FileReader()
     
-                    const extension = files[i].name.split(".").pop().toLowerCase()
+                    const extension = Formats.extensionOf(files[i].name)
     
                     reader.addEventListener("load", () => {
                         if (extension === "txt" || extension === "xml" || extension === "json") {
@@ -779,7 +764,7 @@
                                             .then((text) => {
                                                 try {
                                                     // Match labels to images by file name, whatever folder they are in
-                                                    storeBbox(filename.split("/").pop(), text)
+                                                    storeBbox(Formats.baseName(filename), text)
                                                 } catch (error) {
                                                     failed.push(`${filename}: ${error.message}`)
                                                 }
@@ -813,187 +798,27 @@
         bboxes = {}
     }
 
+    // Adds the boxes of one annotation file (.txt/.xml/.json, other files are ignored) to the loaded images
     const storeBbox = (filename, text) => {
-        let image = null
-        let bbox = null
+        const {boxes, unmatched} = Formats.parseAnnotationFile(filename, text, images, classes)
 
-        const extension = filename.split(".").pop().toLowerCase()
-
-        if (extension === "txt" || extension === "xml") {
-            for (let i = 0; i < extensions.length; i++) {
-                const imageName = `${filename.slice(0, -(extension.length + 1))}.${extensions[i]}`
-
-                if (typeof images[imageName] !== "undefined") {
-                    image = images[imageName]
-
-                    if (typeof bboxes[imageName] === "undefined") {
-                        bboxes[imageName] = {}
-                    }
-
-                    bbox = bboxes[imageName]
-
-                    if (extension === "txt") {
-                        const rows = text.split(/[\r\n]+/)
-
-                        for (let i = 0; i < rows.length; i++) {
-                            const cols = rows[i].trim().split(/\s+/)
-
-                            if (cols.length < 5) {
-                                continue
-                            }
-
-                            cols[0] = parseInt(cols[0])
-
-                            for (let className in classes) {
-                                if (classes[className] === cols[0]) {
-                                    if (typeof bbox[className] === "undefined") {
-                                        bbox[className] = []
-                                    }
-
-                                    // Reverse engineer actual position and dimensions from yolo format.
-                                    // Not rounded, so that loading and saving again gives the same values.
-                                    const width = parseFloat(cols[3]) * image.width
-                                    const x = parseFloat(cols[1]) * image.width - width * 0.5
-                                    const height = parseFloat(cols[4]) * image.height
-                                    const y = parseFloat(cols[2]) * image.height - height * 0.5
-
-                                    bbox[className].push({
-                                        x: x,
-                                        y: y,
-                                        width: width,
-                                        height: height,
-                                        marked: false,
-                                        class: className
-                                    })
-
-                                    break
-                                }
-                            }
-                        }
-                    } else if (extension === "xml") {
-                        const parser = new DOMParser()
-                        const xmlDoc = parser.parseFromString(text, "text/xml")
-
-                        const objects = xmlDoc.getElementsByTagName("object")
-
-                        for (let i = 0; i < objects.length; i++) {
-                            const objectName = objects[i].getElementsByTagName("name")[0].childNodes[0].nodeValue
-
-                            for (let className in classes) {
-                                if (className === objectName) {
-                                    if (typeof bbox[className] === "undefined") {
-                                        bbox[className] = []
-                                    }
-
-                                    const bndBox = objects[i].getElementsByTagName("bndbox")[0]
-
-                                    const bndBoxX = bndBox.getElementsByTagName("xmin")[0].childNodes[0].nodeValue
-                                    const bndBoxY = bndBox.getElementsByTagName("ymin")[0].childNodes[0].nodeValue
-                                    const bndBoxMaxX = bndBox.getElementsByTagName("xmax")[0].childNodes[0].nodeValue
-                                    const bndBoxMaxY = bndBox.getElementsByTagName("ymax")[0].childNodes[0].nodeValue
-
-                                    bbox[className].push({
-                                        x: parseInt(bndBoxX),
-                                        y: parseInt(bndBoxY),
-                                        width: parseInt(bndBoxMaxX) - parseInt(bndBoxX),
-                                        height: parseInt(bndBoxMaxY) - parseInt(bndBoxY),
-                                        marked: false,
-                                        class: className
-                                    })
-
-                                    break
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        } else if (extension === "json") {
-            const json = JSON.parse(text)
-            let unmatched = 0
-
-            for (let i = 0; i < json.annotations.length; i++) {
-                let imageName = null
-                let categoryName = null
-                // Reset per annotation so an unmatched one can't reuse the previous image's bbox
-                image = null
-                bbox = null
-
-                for (let j = 0; j < json.images.length; j++) {
-                    if (json.annotations[i].image_id === json.images[j].id) {
-                        // file_name often includes a folder (e.g. "images/a.jpg"); match by name only
-                        imageName = String(json.images[j].file_name).split(/[\\/]/).pop()
-
-                        if (typeof images[imageName] !== "undefined") {
-                            image = images[imageName]
-
-                            if (typeof bboxes[imageName] === "undefined") {
-                                bboxes[imageName] = {}
-                            }
-
-                            bbox = bboxes[imageName]
-
-                            break
-                        }
-                    }
-                }
-
-                if (bbox === null) {
-                    unmatched++
-
-                    continue
-                }
-
-                for (let j = 0; j < json.categories.length; j++) {
-                    if (json.annotations[i].category_id === json.categories[j].id) {
-                        categoryName = json.categories[j].name
-
-                        break
-                    }
-                }
-
-                for (let className in classes) {
-                    if (className === categoryName) {
-                        if (typeof bbox[className] === "undefined") {
-                            bbox[className] = []
-                        }
-
-                        const bboxX = json.annotations[i].bbox[0]
-                        const bboxY = json.annotations[i].bbox[1]
-                        const bboxWidth = json.annotations[i].bbox[2]
-                        const bboxHeight = json.annotations[i].bbox[3]
-
-                        bbox[className].push({
-                            x: bboxX,
-                            y: bboxY,
-                            width: bboxWidth,
-                            height: bboxHeight,
-                            marked: false,
-                            class: className
-                        })
-
-                        break
-                    }
-                }
+        Object.keys(boxes).forEach((imageName) => {
+            if (typeof bboxes[imageName] === "undefined") {
+                bboxes[imageName] = {}
             }
 
-            if (unmatched > 0) {
-                console.warn(`${filename}: skipped ${unmatched} annotation(s) whose image is not loaded`)
-            }
+            boxes[imageName].forEach((bbox) => {
+                if (typeof bboxes[imageName][bbox.class] === "undefined") {
+                    bboxes[imageName][bbox.class] = []
+                }
+
+                bboxes[imageName][bbox.class].push(bbox)
+            })
+        })
+
+        if (unmatched > 0) {
+            console.warn(`${filename}: skipped ${unmatched} annotation(s) whose image is not loaded`)
         }
-    }
-
-    // Returns the image for an annotated name, or null (and records the name) if it isn't loaded
-    const resolveImage = (imageName, skipped) => {
-        const image = images[imageName]
-
-        if (typeof image === "undefined" || typeof image.width === "undefined") {
-            skipped.push(imageName)
-
-            return null
-        }
-
-        return image
     }
 
     const reportSkipped = (format, skipped) => {
@@ -1012,18 +837,6 @@
     }
 
     // Tallies boxes whose class isn't in the loaded class list (e.g. after loading another classes file)
-    const isUnknownClass = (className, classBboxes, unknownClasses) => {
-        if (typeof classes[className] !== "undefined") {
-            return false
-        }
-
-        if (classBboxes.length > 0) {
-            unknownClasses[className] = (unknownClasses[className] || 0) + classBboxes.length
-        }
-
-        return true
-    }
-
     const reportUnknownClasses = (format, unknownClasses) => {
         const names = Object.keys(unknownClasses)
 
@@ -1038,241 +851,47 @@
         alert(`${format} export: skipped boxes whose class is not in the loaded class list:\n\n${list}`)
     }
 
-    const escapeXml = (value) => String(value)
-        .replace(/&/g, "&amp;")
-        .replace(/</g, "&lt;")
-        .replace(/>/g, "&gt;")
-        .replace(/"/g, "&quot;")
-        .replace(/'/g, "&apos;")
+    const downloadZip = (files, zipName) => {
+        const zip = new JSZip()
 
-    // Clips a bbox to the image bounds without modifying it; returns null if nothing of it lies inside the image
-    const clampBbox = (bbox, image) => {
-        const x1 = Math.max(0, Math.min(bbox.x, bbox.x + bbox.width))
-        const y1 = Math.max(0, Math.min(bbox.y, bbox.y + bbox.height))
-        const x2 = Math.min(image.width, Math.max(bbox.x, bbox.x + bbox.width))
-        const y2 = Math.min(image.height, Math.max(bbox.y, bbox.y + bbox.height))
+        Object.keys(files).forEach((fileName) => zip.file(fileName, files[fileName]))
 
-        if (x2 <= x1 || y2 <= y1) {
-            return null
-        }
-
-        return {x: x1, y: y1, width: x2 - x1, height: y2 - y1}
+        zip.generateAsync({type: "blob"})
+            .then((blob) => {
+                saveAs(blob, zipName)
+            })
     }
 
     const listenBboxSave = (saveBBoxesContainerID) => {
         document.getElementById(saveBBoxesContainerID).addEventListener("click", () => {
-            const zip = new JSZip()
-            const skipped = []
-            const unknownClasses = {}
-
-            for (let imageName in bboxes) {
-                const image = resolveImage(imageName, skipped)
-
-                if (image === null) {
-                    continue
-                }
-
-                const name = imageName.split(".")
-
-                name[name.length - 1] = "txt"
-
-                const result = []
-
-                for (let className in bboxes[imageName]) {
-                    if (isUnknownClass(className, bboxes[imageName][className], unknownClasses)) {
-                        continue
-                    }
-
-                    for (let i = 0; i < bboxes[imageName][className].length; i++) {
-                        const bbox = clampBbox(bboxes[imageName][className][i], image)
-
-                        if (bbox === null) {
-                            continue
-                        }
-
-                        // Prepare data for yolo format
-                        const x = (bbox.x + bbox.width / 2) / image.width
-                        const y = (bbox.y + bbox.height / 2) / image.height
-                        const width = bbox.width / image.width
-                        const height = bbox.height / image.height
-
-                        result.push(`${classes[className]} ${x} ${y} ${width} ${height}`)
-                    }
-                }
-
-                zip.file(name.join("."), result.join("\n"))
-            }
+            const {files, skipped, unknownClasses} = Formats.exportYolo(bboxes, images, classes)
 
             reportSkipped("YOLO", skipped)
             reportUnknownClasses("YOLO", unknownClasses)
-
-            zip.generateAsync({type: "blob"})
-                .then((blob) => {
-                    saveAs(blob, "bboxes_yolo.zip")
-                })
+            downloadZip(files, "bboxes_yolo.zip")
         })
     }
 
     const listenBboxVocSave = (saveBBoxesVOCContainerID, vocFolderContainerID) => {
         document.getElementById(saveBBoxesVOCContainerID).addEventListener("click", () => {
             const folderPath = document.getElementById(vocFolderContainerID).value
-
-            const zip = new JSZip()
-            const skipped = []
-
-            for (let imageName in bboxes) {
-                const image = resolveImage(imageName, skipped)
-
-                if (image === null) {
-                    continue
-                }
-
-                const name = imageName.split(".")
-
-                name[name.length - 1] = "xml"
-
-                const result = [
-                    "<?xml version=\"1.0\"?>",
-                    "<annotation>",
-                    `<folder>${escapeXml(folderPath)}</folder>`,
-                    `<filename>${escapeXml(imageName)}</filename>`,
-                    "<path/>",
-                    "<source>",
-                    "<database>Unknown</database>",
-                    "</source>",
-                    "<size>",
-                    `<width>${image.width}</width>`,
-                    `<height>${image.height}</height>`,
-                    "<depth>3</depth>",
-                    "</size>",
-                    "<segmented>0</segmented>"
-                ]
-
-                for (let className in bboxes[imageName]) {
-                    for (let i = 0; i < bboxes[imageName][className].length; i++) {
-                        const bbox = clampBbox(bboxes[imageName][className][i], image)
-
-                        if (bbox === null) {
-                            continue
-                        }
-
-                        result.push("<object>")
-                        result.push(`<name>${escapeXml(className)}</name>`)
-                        result.push("<pose>Unspecified</pose>")
-                        result.push("<truncated>0</truncated>")
-                        result.push("<occluded>0</occluded>")
-                        result.push("<difficult>0</difficult>")
-
-                        result.push("<bndbox>")
-                        result.push(`<xmin>${Math.round(bbox.x)}</xmin>`)
-                        result.push(`<ymin>${Math.round(bbox.y)}</ymin>`)
-                        result.push(`<xmax>${Math.round(bbox.x + bbox.width)}</xmax>`)
-                        result.push(`<ymax>${Math.round(bbox.y + bbox.height)}</ymax>`)
-                        result.push("</bndbox>")
-
-                        result.push("</object>")
-                    }
-                }
-
-                result.push("</annotation>")
-
-                if (result.length > 15) {
-                    zip.file(name.join("."), result.join("\n"))
-                }
-            }
+            const {files, skipped} = Formats.exportVoc(bboxes, images, folderPath)
 
             reportSkipped("VOC", skipped)
-
-            zip.generateAsync({type: "blob"})
-                .then((blob) => {
-                    saveAs(blob, "bboxes_voc.zip")
-                })
+            downloadZip(files, "bboxes_voc.zip")
         })
     }
 
     const listenBboxCocoSave = (saveBBoxesCOCOContainerID) => {
         document.getElementById(saveBBoxesCOCOContainerID).addEventListener("click", () => {
-            const zip = new JSZip()
-
-            const result = {
-                images: [],
-                type: "instances",
-                annotations: [],
-                categories: []
-            }
-
-            for (let className in classes) {
-                result.categories.push({
-                    supercategory: "none",
-                    id: classes[className] + 1,
-                    name: className
-                })
-            }
-
-            for (let imageName in images) {
-                result.images.push({
-                    id: images[imageName].index + 1,
-                    file_name: imageName, //eslint-disable-line camelcase
-                    width: images[imageName].width,
-                    height: images[imageName].height
-                })
-            }
-
-            let id = 0
-            const skipped = []
-            const unknownClasses = {}
-
-            for (let imageName in bboxes) {
-                const image = resolveImage(imageName, skipped)
-
-                if (image === null) {
-                    continue
-                }
-
-                for (let className in bboxes[imageName]) {
-                    if (isUnknownClass(className, bboxes[imageName][className], unknownClasses)) {
-                        continue
-                    }
-
-                    for (let i = 0; i < bboxes[imageName][className].length; i++) {
-                        const bbox = clampBbox(bboxes[imageName][className][i], image)
-
-                        if (bbox === null) {
-                            continue
-                        }
-
-                        const segmentation = [[
-                            bbox.x, bbox.y,
-                            bbox.x, bbox.y + bbox.height,
-                            bbox.x + bbox.width, bbox.y + bbox.height,
-                            bbox.x + bbox.width, bbox.y
-                        ]]
-
-                        result.annotations.push({
-                            segmentation: segmentation,
-                            area: bbox.width * bbox.height,
-                            iscrowd: 0,
-                            ignore: 0,
-                            image_id: image.index + 1, //eslint-disable-line camelcase
-                            bbox: [bbox.x, bbox.y, bbox.width, bbox.height],
-                            category_id: classes[className] + 1, //eslint-disable-line camelcase
-                            id: ++id
-                        })
-                    }
-                }
-            }
-
-            zip.file("coco.json", JSON.stringify(result))
+            const {files, skipped, unknownClasses} = Formats.exportCoco(bboxes, images, classes)
 
             reportSkipped("COCO", skipped)
             reportUnknownClasses("COCO", unknownClasses)
-
-            zip.generateAsync({type: "blob"})
-                .then((blob) => {
-                    saveAs(blob, "bboxes_coco.zip")
-                })
+            downloadZip(files, "bboxes_coco.zip")
         })
     }
+
 
     const listenBboxRestore = (restoreBboxesContainerID) => {
         document.getElementById(restoreBboxesContainerID).addEventListener("click", () => {
@@ -1412,26 +1031,7 @@
     const listenImageCrop = (cropImagesContainerID) => {
         document.getElementById(cropImagesContainerID).addEventListener("click", () => {
             const zip = new JSZip()
-            const skipped = []
-            const crops = []
-
-            for (let imageName in bboxes) {
-                const image = resolveImage(imageName, skipped)
-
-                if (image === null) {
-                    continue
-                }
-
-                for (let className in bboxes[imageName]) {
-                    for (let i = 0; i < bboxes[imageName][className].length; i++) {
-                        const bbox = clampBbox(bboxes[imageName][className][i], image)
-
-                        if (bbox !== null) {
-                            crops.push({imageName, image, className, i, bbox})
-                        }
-                    }
-                }
-            }
+            const {crops, skipped} = Formats.cropRegions(bboxes, images)
 
             reportSkipped("Crop", skipped)
 
@@ -1454,7 +1054,7 @@
                 }
             }
 
-            crops.forEach(({imageName, image, className, i, bbox}) => {
+            crops.forEach(({imageName, image, bbox, fileName}) => {
                 const reader = new FileReader()
 
                 reader.addEventListener("load", () => {
@@ -1486,14 +1086,10 @@
                         )
 
                         temporaryCanvas.toBlob((blob) => {
-                            const imageNameParts = imageName.split(".")
-
-                            imageNameParts[imageNameParts.length - 2] += `-${className}-${i}`
-
                             if (blob !== null) {
-                                zip.file(imageNameParts.join("."), blob)
+                                zip.file(fileName, blob)
                             } else {
-                                console.warn(`Crop: empty crop ${imageNameParts.join(".")} skipped`)
+                                console.warn(`Crop: empty crop ${fileName} skipped`)
                             }
 
                             cropDone()
