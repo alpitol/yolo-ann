@@ -50,3 +50,26 @@ const loadImage = (file) => new Promise((resolve, reject) => {
 })
 
 const canvasToBlob = (canvas, type) => new Promise((resolve) => canvas.toBlob(resolve, type))
+
+// How many picked files are read at once. Opening hundreds in parallel can stall the browser, especially when
+// files go through a sandbox file portal (Flatpak/Snap) or an on-access virus scanner.
+const fileReadConcurrency = 4
+
+// Like Promise.all(items.map(worker)), but with at most `limit` workers running at a time
+const mapLimit = async (items, limit, worker) => {
+    const results = new Array(items.length)
+    let next = 0
+
+    const run = async () => {
+        while (next < items.length) {
+            const index = next
+
+            next += 1
+            results[index] = await worker(items[index], index)
+        }
+    }
+
+    await Promise.all(Array.from({length: Math.min(limit, items.length)}, run))
+
+    return results
+}

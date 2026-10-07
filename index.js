@@ -509,13 +509,18 @@
             document.body.style.cursor = "wait"
 
             // Decode every image once to learn its size, which the annotation formats need
-            await Promise.all(imageNames.map((imageName) => loadImage(imageSet[imageName].meta)
-                .then((imageObject) => {
+            await mapLimit(imageNames, fileReadConcurrency, (imageName) => {
+                if (state.images !== imageSet) {
+                    return null // A newer selection replaced this one; stop reading its files
+                }
+
+                return loadImage(imageSet[imageName].meta).then((imageObject) => {
                     imageSet[imageName].width = imageObject.width
                     imageSet[imageName].height = imageObject.height
                 }, () => {
                     failed.push(imageName)
-                })))
+                })
+            })
 
             if (state.images !== imageSet) {
                 return
@@ -737,7 +742,7 @@
             resetBboxes()
 
             // Each file reports its own errors, so the canvas is always redrawn at the end
-            const needClasses = [].concat(...await Promise.all(files.map(loadAnnotationSource)))
+            const needClasses = [].concat(...await mapLimit(files, fileReadConcurrency, loadAnnotationSource))
 
             if (needClasses.length > 0) {
                 const more = needClasses.length > 10 ? `\n...and ${needClasses.length - 10} more` : ""
@@ -1032,7 +1037,7 @@
     const listenImageCrop = (cropImagesContainerID) => {
         document.getElementById(cropImagesContainerID).addEventListener("click", async () => {
             const {crops, skipped} = Formats.cropRegions(state.bboxes, state.images)
-            const decoded = {} // One decode per image, shared by all its crops
+            const cropsByImage = {} // One decode per image, shared by all its crops
             const files = {}
 
             reportSkipped("Crop", skipped)
@@ -1043,35 +1048,41 @@
 
             document.body.style.cursor = "wait" // Mark as busy
 
-            try {
-                await Promise.all(crops.map(async ({imageName, image, bbox, fileName}) => {
-                    decoded[imageName] = decoded[imageName] || loadImage(image.meta)
+            crops.forEach((crop) => {
+                cropsByImage[crop.imageName] = cropsByImage[crop.imageName] || []
+                cropsByImage[crop.imageName].push(crop)
+            })
 
+            try {
+                await mapLimit(Object.keys(cropsByImage), fileReadConcurrency, async (imageName) => {
+                    const imageCrops = cropsByImage[imageName]
                     let imageObject = null
 
                     try {
-                        imageObject = await decoded[imageName]
+                        imageObject = await loadImage(imageCrops[0].image.meta)
                     } catch (error) {
                         console.warn(`Crop: could not decode ${imageName}`)
 
                         return
                     }
 
-                    const temporaryCanvas = document.createElement("canvas")
+                    for (const {image, bbox, fileName} of imageCrops) {
+                        const temporaryCanvas = document.createElement("canvas")
 
-                    temporaryCanvas.width = bbox.width
-                    temporaryCanvas.height = bbox.height
-                    temporaryCanvas.getContext("2d").drawImage(imageObject, bbox.x, bbox.y, bbox.width, bbox.height,
-                        0, 0, bbox.width, bbox.height)
+                        temporaryCanvas.width = bbox.width
+                        temporaryCanvas.height = bbox.height
+                        temporaryCanvas.getContext("2d").drawImage(imageObject, bbox.x, bbox.y, bbox.width,
+                            bbox.height, 0, 0, bbox.width, bbox.height)
 
-                    const blob = await canvasToBlob(temporaryCanvas, image.meta.type)
+                        const blob = await canvasToBlob(temporaryCanvas, image.meta.type)
 
-                    if (blob !== null) {
-                        files[fileName] = blob
-                    } else {
-                        console.warn(`Crop: empty crop ${fileName} skipped`)
+                        if (blob !== null) {
+                            files[fileName] = blob
+                        } else {
+                            console.warn(`Crop: empty crop ${fileName} skipped`)
+                        }
                     }
-                }))
+                })
             } finally {
                 document.body.style.cursor = "default"
             }
