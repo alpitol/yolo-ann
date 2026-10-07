@@ -11,6 +11,7 @@ hr {
 }
 
 .container {
+    --sidebar-width: 30%; /* Set by dragging #sidebarResizer */
     display: block;
     position: absolute;
     height: auto;
@@ -25,7 +26,7 @@ hr {
 }
 
 .left {
-    width: calc(30% - 10px);
+    width: calc(var(--sidebar-width) - 10px);
     position: absolute;
     left: 0;
     top: 0;
@@ -38,8 +39,24 @@ hr {
 
 .right {
     border-left: 1px solid gray;
-    margin: 10px 10px 10px calc(30% + 10px);
+    margin: 10px 10px 10px calc(var(--sidebar-width) + 10px);
     padding-left: 10px;
+}
+
+/* A grab area over .right's left border */
+#sidebarResizer {
+    position: absolute;
+    top: 10px;
+    bottom: 10px;
+    left: calc(var(--sidebar-width) + 10px - 5px);
+    width: 11px;
+    cursor: col-resize;
+    z-index: 1;
+    touch-action: none;
+}
+
+#sidebarResizer:hover, #sidebarResizer.dragging {
+    background: linear-gradient(to right, transparent 4px, #4a90d9 4px, #4a90d9 7px, transparent 7px);
 }
 
 #images, #classes, #bboxes {

@@ -20,6 +20,8 @@
     const drawCenterX = true // Whether to draw a cross in the middle of bbox
     const linePaddingPercent = 0.2 // Padding for cross
     const drawCursorGuidelines = true // Whether to draw guidelines for cursor
+    const minSidebarWidth = 200 // Narrowest the sidebar can be dragged, in pixels
+    const minCanvasWidth = 300 // How close to the right window edge the sidebar can be dragged, in pixels
 
     let canvas = null
 
@@ -53,6 +55,8 @@
     const vocFolderID = 'vocFolder'
     const saveBBoxesCOCOID = 'saveCocoBboxes'
     const cropImagesID = 'cropImages'
+    const containerID = "container"
+    const sidebarResizerID = "sidebarResizer"
 
     // Keep tracking objects in drawing mode
     var isDrawingMode = false
@@ -102,6 +106,7 @@
     // Start everything
     document.onreadystatechange = () => {
         if (document.readyState === "complete") {
+            listenSidebarResize(sidebarResizerID, containerID) // Restores the saved width before the canvas is sized
             initCanvas(canvasID, bboxInformationID)
             listenCanvasMouse(bboxInformationID)
             listenImageLoad(imagesID, imageListID)
@@ -127,21 +132,8 @@
         })
         fitCanvasToWindow()
 
-        // Browser zoom resizes the window too. Resize at most once per frame while dragging the window edge.
-        let resizePending = false
-
-        window.addEventListener("resize", () => {
-            if (resizePending) {
-                return
-            }
-
-            resizePending = true
-            window.requestAnimationFrame(() => {
-                resizePending = false
-                fitCanvasToWindow()
-                refreshCanvas() // Fits the image to the new width
-            })
-        })
+        // Browser zoom resizes the window too
+        window.addEventListener("resize", scheduleCanvasFit)
 
         if (drawCursorGuidelines === true) {
             canvas.hoverCursor = 'crosshair'
@@ -169,6 +161,86 @@
         canvas.setDimensions({
             width: Math.floor(right.clientWidth - padding),
             height: window.innerHeight - 20 // .right's top and bottom margins
+        })
+    }
+
+    // Refits the canvas at most once per frame, e.g. while dragging the window edge or the sidebar border
+    let canvasFitPending = false
+
+    const scheduleCanvasFit = () => {
+        if (canvasFitPending) {
+            return
+        }
+
+        canvasFitPending = true
+        window.requestAnimationFrame(() => {
+            canvasFitPending = false
+            fitCanvasToWindow()
+            refreshCanvas() // Fits the image to the new width
+        })
+    }
+
+    // Dragging the sidebar's border resizes it; double-click resets it. The width is kept as a percentage of the
+    // window, so it scales with window resizes, and remembered across reloads.
+    const listenSidebarResize = (resizerID, containerID) => {
+        const resizer = document.getElementById(resizerID)
+        const container = document.getElementById(containerID)
+        const storageKey = "sidebarWidth"
+        const borderOffset = 10 // .right's border is this far right of the sidebar width (see index.css)
+
+        const setWidth = (pixels) => {
+            const total = container.clientWidth
+            const clamped = Math.max(minSidebarWidth, Math.min(pixels, total - minCanvasWidth))
+
+            container.style.setProperty("--sidebar-width", `${clamped / total * 100}%`)
+        }
+
+        const saved = isSupported() ? parseFloat(localStorage.getItem(storageKey)) : NaN
+
+        if (isFinite(saved)) {
+            setWidth(saved / 100 * container.clientWidth)
+        }
+
+        resizer.addEventListener("pointerdown", (event) => {
+            if (event.button !== 0) {
+                return
+            }
+
+            event.preventDefault() // No text selection while dragging
+            resizer.setPointerCapture(event.pointerId)
+            resizer.classList.add("dragging")
+        })
+
+        resizer.addEventListener("pointermove", (event) => {
+            if (resizer.classList.contains("dragging")) {
+                setWidth(event.clientX - borderOffset)
+                scheduleCanvasFit()
+            }
+        })
+
+        const stopDragging = () => {
+            if (!resizer.classList.contains("dragging")) {
+                return
+            }
+
+            resizer.classList.remove("dragging")
+
+            if (isSupported()) {
+                localStorage.setItem(storageKey, parseFloat(container.style.getPropertyValue("--sidebar-width")))
+            }
+        }
+
+        resizer.addEventListener("pointerup", stopDragging)
+        resizer.addEventListener("lostpointercapture", stopDragging)
+
+        resizer.addEventListener("dblclick", () => {
+            container.style.removeProperty("--sidebar-width")
+
+            if (isSupported()) {
+                localStorage.removeItem(storageKey)
+            }
+
+            scheduleCanvasFit()
         })
     }
 
