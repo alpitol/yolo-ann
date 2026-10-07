@@ -1,9 +1,3 @@
-# Unreleased
-Fixed:
-* Loading hundreds of images, annotation files, or Crop&Save no longer opens every file at once, which could
-  freeze the browser (especially Flatpak/Snap browsers or with an on-access virus scanner). Files are read four
-  at a time, and Crop&Save releases each decoded image when its crops are done.
-
 # 2026-10-07, v0.3.0
 Since v0.2.5 this fork switched to FabricJS, updated jszip and FileSaver.js, and added BMP images
 (see README.md). This release fixes exports and imports and makes loading more forgiving.
@@ -38,6 +32,9 @@ Fixed:
 * Image names with `&` and other special characters work in the image list.
 * Ctrl+click on the selected image or class no longer breaks the arrow keys.
 * The canvas redraws after Restore and after loading annotations, even if some files fail.
+* Loading hundreds of images, annotation files, or Crop&Save no longer opens every file at once, which could
+  freeze the browser (especially Flatpak/Snap browsers or with an on-access virus scanner). Files are read four
+  at a time, and Crop&Save releases each decoded image when its crops are done.
 
 # 2019-12-02, v0.2.5
 Renamed project to make it more fit for professional environment.

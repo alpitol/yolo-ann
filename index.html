@@ -31,7 +31,7 @@
                 <label for="imageSearch">Search:</label>
                 <input type="text" id="imageSearch" name="imageSearch" />
 
-                <label for="imageList"></label><select name="imageList" id="imageList" size="10" multiple></select>
+                <label for="imageList"></label><select name="imageList" id="imageList" size="7" multiple></select>
 
                 <div id="imageInformation"></div>
                 <hr />
@@ -39,8 +39,7 @@
                 <label for="classes">Classes:</label>
                 <input type="file" id="classes" name="classes" accept=".txt,.names" />
                 <div class="hint">
-                    YOLO/VOC: A text file with one class per row<br />
-                    COCO: No need to upload, classes are read from bbox json
+                    A text file with one class per row. Not needed for COCO.
                 </div>
                 <label for="classList"></label><select name="classList" id="classList" size="10" multiple></select>
 
@@ -50,6 +49,13 @@
                 <label for="bboxes">Bboxes:</label>
                 <input type="file" id="bboxes" name="bboxes[]" accept=".txt,.xml,.json,.zip,text/plain,application/zip" disabled multiple />
 
+                <hr />
+                <div class="row">
+                    <input type="button" name="restoreBboxes" id="restoreBboxes" value="Restore backup" disabled />
+                    <span class="hint">Bboxes are saved every minute to local browser storage.</span>
+                </div>
+                <hr />
+
                 <div class="row">
                     <input type="button" name="saveBboxes" id="saveBboxes" value="Save YOLO" />
                     <input type="button" name="saveCocoBboxes" id="saveCocoBboxes" value="Save COCO" />
@@ -58,12 +64,6 @@
                     <label for="vocFolder">Voc folder:</label>
                     <input type="text" id="vocFolder" name="vocFolder" value="data" />
                     <input type="button" name="saveVocBboxes" id="saveVocBboxes" value="Save VOC" />
-                </div>
-                <hr />
-
-                <div class="row">
-                    <input type="button" name="restoreBboxes" id="restoreBboxes" value="Restore" disabled />
-                    <span class="hint">Restore bboxes from local browser memory backup</span>
                 </div>
                 <hr />
 
