@@ -106,6 +106,9 @@
     // Start everything
     document.onreadystatechange = () => {
         if (document.readyState === "complete") {
+            // Nothing is loaded after a reload, so the pickers and buttons mustn't show a restored state
+            document.querySelector("form").reset()
+            updateLoadButtons()
             listenSidebarResize(sidebarResizerID, containerID) // Restores the saved width before the canvas is sized
             initCanvas(canvasID, bboxInformationID)
             listenCanvasMouse(bboxInformationID)

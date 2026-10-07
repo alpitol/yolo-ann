@@ -32,6 +32,8 @@ Fixed:
 * Switching images quickly or loading a new image set no longer shows the wrong image.
 * One image that fails to decode no longer stops the rest from loading.
 * Delete and arrow keys no longer act on boxes and images while typing in a text field.
+* After a page reload, Firefox no longer shows the previous file selection or enables Bboxes and Restore
+  while no images are loaded.
 * Delete no longer removes a box that was already deselected.
 * Image names with `&` and other special characters work in the image list.
 * Ctrl+click on the selected image or class no longer breaks the arrow keys.
