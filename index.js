@@ -271,13 +271,18 @@
         if (event.e.button !== 0) {
             return
         }
-        if (canvas.getActiveObject()) {
+        // Pressing on an existing bbox (or the resize handles of the selected one) selects/moves it instead.
+        // Anywhere else (background image, labels, empty canvas) draws, even while another bbox is selected.
+        if (event.target && event.target.selectable) {
             return
         }
-        if (canvas.getActiveObject() || currentImage === null || currentImage === undefined || currentClass === null || currentClass === undefined) {
+        if (currentImage === null || currentImage === undefined ||
+            currentClass === null || currentClass === undefined) {
             // Prevent drawing new bounding box when no image or classname is selected
-            // If some an existing object is currently selected prevent drawing also
             return
+        }
+        if (canvas.getActiveObject()) {
+            canvas.discardActiveObject()
         }
         const imgScale = currentImage.scale
         isDrawingMode = true
