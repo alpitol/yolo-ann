@@ -84,6 +84,9 @@
         setInterval(() => {
             if (Object.keys(state.bboxes).length > 0) {
                 localStorage.setItem("bboxes", JSON.stringify(state.bboxes))
+                // The class list in id order, so Restore works without loading the classes file again
+                localStorage.setItem("classes", JSON.stringify(Object.keys(state.classes)
+                    .sort((a, b) => state.classes[a] - state.classes[b])))
             }
         }, saveInterval * 1000)
     } else {
@@ -509,14 +512,13 @@
         })
     }
 
-    // Annotations are matched to loaded images, so they need images first. Classes are optional for them:
-    // a COCO file brings its own. The backup only makes sense with both.
+    // Annotations and the backup are matched to loaded images, so they need images first. Classes are
+    // optional: a COCO file and the backup bring their own.
     const updateLoadButtons = () => {
         const hasImages = Object.keys(state.images).length > 0
-        const hasClasses = Object.keys(state.classes).length > 0
 
         document.getElementById(bboxesID).disabled = !hasImages
-        document.getElementById(restoreBboxesID).disabled = !(hasImages && hasClasses)
+        document.getElementById(restoreBboxesID).disabled = !hasImages
     }
 
     const resetImageList = (imageListContainerID) => {
@@ -888,27 +890,53 @@
 
     const listenBboxRestore = (restoreBboxesContainerID) => {
         document.getElementById(restoreBboxesContainerID).addEventListener("click", () => {
-            const item = localStorage.getItem("bboxes")
+            let backup = null
+            let classNames = []
 
-            if (item) {
-                state.bboxes = JSON.parse(item)
-                state.currentBBox = null
+            try {
+                backup = JSON.parse(localStorage.getItem("bboxes"))
+                classNames = JSON.parse(localStorage.getItem("classes")) || []
+            } catch (error) {
+                alert(`Could not read the backup: ${error.message}`)
 
-                // The backup is shared by all image sets, so it may hold boxes for images that aren't loaded
-                const unmatched = Object.keys(state.bboxes).filter((imageName) =>
-                    typeof state.images[imageName] === "undefined" &&
-                    Object.values(state.bboxes[imageName]).some((classBboxes) => classBboxes.length > 0))
+                return
+            }
 
-                if (unmatched.length > 0) {
-                    const more = unmatched.length > 10 ? `\n...and ${unmatched.length - 10} more` : ""
+            if (backup === null) {
+                alert("There is no backup in this browser yet.")
 
-                    console.warn("Restored boxes for images that are not loaded:", unmatched)
-                    alert(`Restored boxes for ${unmatched.length} image(s) that are not in the loaded image set. ` +
-                        `They are kept, but skipped on export:\n\n${unmatched.slice(0, 10).join("\n")}${more}`)
+                return
+            }
+
+            // A loaded classes file wins over the backup's class list
+            if (Object.keys(state.classes).length === 0) {
+                if (classNames.length === 0) {
+                    alert("This backup has no class list (it was saved by an older version). " +
+                        "Load the classes file, then restore again.")
+
+                    return
                 }
 
-                refreshCanvas()
+                setClassList(classNames)
             }
+
+            state.bboxes = backup
+            state.currentBBox = null
+
+            // The backup is shared by all image sets, so it may hold boxes for images that aren't loaded
+            const unmatched = Object.keys(state.bboxes).filter((imageName) =>
+                typeof state.images[imageName] === "undefined" &&
+                Object.values(state.bboxes[imageName]).some((classBboxes) => classBboxes.length > 0))
+
+            if (unmatched.length > 0) {
+                const more = unmatched.length > 10 ? `\n...and ${unmatched.length - 10} more` : ""
+
+                console.warn("Restored boxes for images that are not loaded:", unmatched)
+                alert(`Restored boxes for ${unmatched.length} image(s) that are not in the loaded image set. ` +
+                    `They are kept, but skipped on export:\n\n${unmatched.slice(0, 10).join("\n")}${more}`)
+            }
+
+            refreshCanvas()
         })
     }
 
