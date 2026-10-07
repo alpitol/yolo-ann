@@ -72,9 +72,13 @@ hr {
     margin-top: 10px;
 }
 
-#imageInformation, #bboxInformation {
-    height: 20px;
-    width: 100%;
+/* Image details and box details on one line; the fixed first column keeps the box details in place.
+   In a narrow panel the box details wrap rather than get cut off. */
+.information {
+    display: grid;
+    grid-template-columns: 10.5em minmax(0, 1fr);
+    column-gap: 10px;
+    min-height: 20px;
 }
 
 #vocFolder {

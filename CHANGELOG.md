@@ -15,6 +15,7 @@ Changed:
 * The canvas follows window resizes and browser zoom, and stays sharp after zooming in.
 * A new box can be drawn while another one is selected; pressing inside a box selects it.
 * Hints next to Classes and Restore; Save YOLO and Save COCO share a row; the side panel scrolls when needed.
+* The image details and the box details share one line under the image list.
 * A malformed VOC file adds none of its boxes. `.csv` class files are no longer offered (they were never read).
 * Annotation file parsing and export moved into `formats.js`.
 
