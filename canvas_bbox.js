@@ -46,6 +46,7 @@ const newRect = (bbox, className,
         height: bbox.height * scale,
         stroke: rect_props.stroke,
         strokeWidth: rect_props.strokeWidth,
+        strokeUniform: true, // Keep border width constant when the box is resized
         fill: rect_props.fill,
         opacity: rect_props.opacity,
         strokeDashArray: null

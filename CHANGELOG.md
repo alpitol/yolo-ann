@@ -21,6 +21,7 @@ Changed:
 * Annotation file parsing and export moved into `formats.js`.
 
 Fixed:
+* Resizing a box no longer scales the width of its border.
 * Save YOLO/VOC/COCO and Crop&Save did nothing if the boxes referred to an image that isn't loaded.
 * COCO import could put boxes on the wrong image, or stop at an annotation of an unloaded image.
 * COCO annotations whose `file_name` includes a folder were not matched.
