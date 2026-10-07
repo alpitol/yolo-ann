@@ -560,11 +560,7 @@
                 showImageProgress("waiting")
             }
         })
-        imagesElement.addEventListener("cancel", stopWaiting)
-        // Fallback for browsers that send neither change nor cancel, e.g. when the same files are picked again.
-        // Clicking the input or pressing Enter on it comes before its click event, which starts waiting again.
-        document.addEventListener("pointerdown", stopWaiting)
-        document.addEventListener("keydown", stopWaiting)
+        imagesElement.addEventListener("cancel", stopWaiting) // Chromium also sends this when the same files are picked
 
         imagesElement.addEventListener("change", async (event) => {
             const imageList = document.getElementById(imageListContainerID)
