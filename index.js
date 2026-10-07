@@ -124,8 +124,23 @@
             preserveObjectStacking: true,
             selection: false // Disable selection of multiple objects by "click+drag" or "shift+click"
         })
-        canvas.setHeight(window.innerHeight - 20)
-        canvas.setWidth(document.getElementById("right").clientWidth)
+        fitCanvasToWindow()
+
+        // Browser zoom resizes the window too. Resize at most once per frame while dragging the window edge.
+        let resizePending = false
+
+        window.addEventListener("resize", () => {
+            if (resizePending) {
+                return
+            }
+
+            resizePending = true
+            window.requestAnimationFrame(() => {
+                resizePending = false
+                fitCanvasToWindow()
+                refreshCanvas() // Fits the image to the new width
+            })
+        })
 
         if (drawCursorGuidelines === true) {
             canvas.hoverCursor = 'crosshair'
@@ -140,6 +155,20 @@
         canvas.on('selection:updated', changeCurrentBBox)
         // Otherwise Delete would still remove the last selected bbox's data while its rect stays on the canvas
         canvas.on('selection:cleared', clearCurrentBBox)
+    }
+
+    // Makes the canvas fill the area right of the sidebar
+    const fitCanvasToWindow = () => {
+        const right = document.getElementById("right")
+        const style = window.getComputedStyle(right)
+        const padding = parseFloat(style.paddingLeft) + parseFloat(style.paddingRight)
+
+        // Fabric reads the pixel ratio only once, but browser zoom changes it; a stale one blurs the image
+        fabric.devicePixelRatio = window.devicePixelRatio || 1
+        canvas.setDimensions({
+            width: Math.floor(right.clientWidth - padding),
+            height: window.innerHeight - 20 // .right's top and bottom margins
+        })
     }
 
     // Forgets the selected box; its rect stays on the canvas
