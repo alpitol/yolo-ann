@@ -67,6 +67,54 @@ const Formats = (() => {
         .map((row) => row.trim())
         .filter((row) => row !== "")
 
+    // Checks a file picked as the classes file before it replaces the class list. Annotation files are
+    // easy to pick there by mistake, so they get a hint to use the Bboxes field instead.
+    // Returns { classes } or { error }.
+    const readClassFile = (fileName, text) => {
+        const extension = extensionOf(fileName)
+        const useBboxes = "Load annotation files with the Bboxes field instead."
+
+        if (extension === "json") {
+            return {error: `${fileName} looks like COCO annotations, not a class list. ${useBboxes} ` +
+                "If no classes are loaded, the class list is filled from its categories."}
+        }
+
+        if (extension === "xml" || extension === "zip") {
+            return {error: `${fileName} looks like annotations, not a class list. ${useBboxes}`}
+        }
+
+        if (extension !== "txt" && extension !== "names") {
+            return {error: `${fileName} is not a class list. Use a .txt or .names file with one class name per line.`}
+        }
+
+        const start = text.trim().charAt(0)
+
+        if (start === "{" || start === "[" || start === "<") {
+            return {error: `${fileName} contains JSON or XML, not one class name per line. ` +
+                "If it holds annotations, load it with the Bboxes field instead."}
+        }
+
+        const classes = parseClasses(text)
+
+        if (classes.length === 0) {
+            return {error: `${fileName} contains no class names.`}
+        }
+
+        if (classes.every((row) => /^\d+(\s+[-+]?(\d+\.?\d*|\.\d+)(e[-+]?\d+)?){4}$/i.test(row))) {
+            return {error: `${fileName} looks like a YOLO label file ("class x y width height" rows), ` +
+                `not a class list. ${useBboxes}`}
+        }
+
+        const duplicates = classes.filter((name, i) => classes.indexOf(name) !== i)
+
+        if (duplicates.length > 0) {
+            return {error: `${fileName} lists these classes more than once, so their ids would be ambiguous: ` +
+                `${duplicates.filter((name, i) => duplicates.indexOf(name) === i).join(", ")}`}
+        }
+
+        return {classes}
+    }
+
     /* Reading annotations */
 
     // One "class cx cy w h" row per box, normalised to 0..1. Rows with unknown class ids are ignored.
@@ -396,6 +444,7 @@ const Formats = (() => {
         clampBbox,
         escapeXml,
         parseClasses,
+        readClassFile,
         parseYolo,
         parseVoc,
         parseCoco,

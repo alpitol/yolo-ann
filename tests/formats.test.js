@@ -17,6 +17,32 @@ const defineFormatsTests = (Formats, test, assert) => {
         assert.equal(Formats.parseClasses("\n  \n"), [])
     })
 
+    test("readClassFile accepts one class name per line in .txt and .names", () => {
+        assert.equal(Formats.readClassFile("classes.txt", "boat\npower boat\n3\n"),
+            {classes: ["boat", "power boat", "3"]})
+        assert.equal(Formats.readClassFile("obj.NAMES", "boat"), {classes: ["boat"]})
+    })
+
+    test("readClassFile points annotation files to the Bboxes field", () => {
+        const errorOf = (fileName, text) => Formats.readClassFile(fileName, text).error || ""
+
+        assert.ok(/COCO.*Bboxes/.test(errorOf("coco.json", "")), "json")
+        assert.ok(/Bboxes/.test(errorOf("a.xml", "")), "xml")
+        assert.ok(/Bboxes/.test(errorOf("labels.zip", "")), "zip")
+        assert.ok(/Bboxes/.test(errorOf("a.txt", '{"images": []}')), "json content")
+        assert.ok(/Bboxes/.test(errorOf("a.txt", "<annotation></annotation>")), "xml content")
+        assert.ok(/YOLO.*Bboxes/.test(errorOf("a.txt", "0 0.5 0.5 0.2 0.1\n1 .25 0.5 1e-1 1\n")), "yolo")
+    })
+
+    test("readClassFile rejects other files, empty lists and duplicate names", () => {
+        const errorOf = (fileName, text) => Formats.readClassFile(fileName, text).error || ""
+
+        assert.ok(/\.txt or \.names/.test(errorOf("classes.csv", "boat")), "csv")
+        assert.ok(/\.txt or \.names/.test(errorOf("a.jpg", "")), "image")
+        assert.ok(/no class names/.test(errorOf("classes.txt", "\n \n")), "empty")
+        assert.ok(/more than once.*: boat$/.test(errorOf("classes.txt", "boat\nbuoy\nboat\nboat")), "duplicates")
+    })
+
     /* YOLO import */
 
     test("parseYolo converts normalised centre/size rows to pixels", () => {

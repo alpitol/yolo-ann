@@ -611,15 +611,29 @@
             }
 
             const extension = Formats.extensionOf(files[0].name)
+            let result = null
 
-            if (extension !== "txt" && extension !== "names") {
-                setClassList([])
+            try {
+                // Don't read files that are rejected by name anyway (could be a large zip)
+                const text = extension === "txt" || extension === "names" ? await readText(files[0]) : ""
+
+                result = Formats.readClassFile(files[0].name, text)
+            } catch (error) {
+                result = {error: `Could not read ${files[0].name}: ${error.message}`}
+            }
+
+            if (typeof result.error !== "undefined") {
+                // Reject the file: the picker shows no file and the current class list stays
+                const kept = Object.keys(state.classes).length > 0 ? "\n\nThe current class list is kept." : ""
+
+                classesElement.value = ""
+                alert(result.error + kept)
 
                 return
             }
 
             // Ids count non-empty rows only, so blank lines don't shift them
-            setClassList(Formats.parseClasses(await readText(files[0])))
+            setClassList(result.classes)
         })
     }
 

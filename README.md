@@ -60,7 +60,7 @@ Main differences are:
 * Updated version of `jszip`
 * Updated version of `FileSaver.js`
 * Panning is done via wheel button
-* Accept *.names, *.csv and *.txt extensions for classnames file
+* Accept *.names and *.txt extensions for classnames file (one class name per line)
 
 
 ## Compatibility
