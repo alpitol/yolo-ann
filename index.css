@@ -33,6 +33,7 @@ hr {
     height: auto;
     display: block;
     margin: 10px 0 10px 10px;
+    overflow-y: auto; /* Scroll the controls on short screens; the page itself doesn't scroll */
 }
 
 .right {
@@ -46,10 +47,6 @@ hr {
     margin-top: 10px;
 }
 
-#bboxes {
-    width: 130px;
-}
-
 #imageList, #classList, #description {
     width: 100%;
     margin-top: 10px;
@@ -57,7 +54,7 @@ hr {
     height: 18%;
 }
 
-#saveClasses, #saveBboxes, #saveVocBboxes, #saveCocoBboxes, #restoreBboxes, #cropImages {
+#cropImages {
     float: right;
     margin-left: 10px;
     margin-top: 10px;
@@ -73,15 +70,26 @@ hr {
     width: 100%;
 }
 
-#voc {
-    margin-top: 10px;
-}
-
 #vocFolder {
     width: 95px;
 }
 
-#saveVocBboxes, #saveCocoBboxes {
+/* A line of controls, e.g. the save buttons */
+.row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 10px;
+    margin: 10px 0;
+}
+
+/* Short help text under or next to a control */
+.hint {
+    font-size: 0.85em;
+    color: #555;
+    margin-top: 4px;
+}
+
+.row .hint {
     margin-top: 0;
-    margin-bottom: 0;
 }

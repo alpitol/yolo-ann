@@ -38,6 +38,10 @@
 
                 <label for="classes">Classes:</label>
                 <input type="file" id="classes" name="classes" accept=".txt,.names" />
+                <div class="hint">
+                    YOLO/VOC: A text file with one class per row<br />
+                    COCO: No need to upload, classes are read from bbox json
+                </div>
                 <label for="classList"></label><select name="classList" id="classList" size="10" multiple></select>
 
                 <div id="bboxInformation"></div>
@@ -45,17 +49,21 @@
 
                 <label for="bboxes">Bboxes:</label>
                 <input type="file" id="bboxes" name="bboxes[]" accept=".txt,.xml,.json,.zip,text/plain,application/zip" disabled multiple />
-                <input type="button" name="restoreBboxes" id="restoreBboxes" value="Restore" disabled />
-                <input type="button" name="saveBboxes" id="saveBboxes" value="Save YOLO" />
 
-                <div id="voc">
+                <div class="row">
+                    <input type="button" name="saveBboxes" id="saveBboxes" value="Save YOLO" />
+                    <input type="button" name="saveCocoBboxes" id="saveCocoBboxes" value="Save COCO" />
+                </div>
+                <div class="row">
                     <label for="vocFolder">Voc folder:</label>
                     <input type="text" id="vocFolder" name="vocFolder" value="data" />
                     <input type="button" name="saveVocBboxes" id="saveVocBboxes" value="Save VOC" />
-                    <input type="button" name="saveCocoBboxes" id="saveCocoBboxes" value="Save COCO" />
                 </div>
-                <div id="coco">
+                <hr />
 
+                <div class="row">
+                    <input type="button" name="restoreBboxes" id="restoreBboxes" value="Restore" disabled />
+                    <span class="hint">Restore bboxes from local browser memory backup</span>
                 </div>
                 <hr />
 
