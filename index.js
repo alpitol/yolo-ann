@@ -21,11 +21,20 @@
     const linePaddingPercent = 0.2 // Padding for cross
     const drawCursorGuidelines = true // Whether to draw guidelines for cursor
 
-    // Main containers
     let canvas = null
-    let images = {}
-    let classes = {}
-    let bboxes = {}
+
+    // All annotation data and selections live here; see formats.js for the shapes of images, classes and bboxes
+    const state = {
+        images: {}, // Loaded image files by name, with their size and position in the image list
+        classes: {}, // Class ids by name
+        bboxes: {}, // Boxes by image name and class name
+        currentImage: null, // Image shown on the canvas: { name, object, width, height, scale }
+        currentImageRequest: 0, // Incremented per image switch so stale async loads can be ignored
+        currentClass: null, // Class name given to new boxes
+        currentBBox: null, // Selected box: { bbox, index, ... }
+        imageListIndex: 0, // Selected row in the image list
+        classListIndex: 0 // Selected row in the class list
+    }
 
     /* Containers */
     const canvasID = 'canvas'
@@ -43,13 +52,6 @@
     const vocFolderID = 'vocFolder'
     const saveBBoxesCOCOID = 'saveCocoBboxes'
     const cropImagesID = 'cropImages'
-
-    let currentImage = null
-    let currentImageRequest = 0 // Incremented per image switch so stale async loads can be ignored
-    let currentClass = null
-    let currentBBox = null
-    let imageListIndex = 0
-    let classListIndex = 0
 
     // Keep tracking objects in drawing mode
     var isDrawingMode = false
@@ -80,8 +82,8 @@
     // Save bboxes to local storage every X seconds
     if (isSupported() === true) {
         setInterval(() => {
-            if (Object.keys(bboxes).length > 0) {
-                localStorage.setItem("bboxes", JSON.stringify(bboxes))
+            if (Object.keys(state.bboxes).length > 0) {
+                localStorage.setItem("bboxes", JSON.stringify(state.bboxes))
             }
         }, saveInterval * 1000)
     } else {
@@ -135,9 +137,9 @@
         canvas.on('selection:updated', changeCurrentBBox)
         // Otherwise Delete would still remove the last selected bbox's data while its rect stays on the canvas
         canvas.on('selection:cleared', () => {
-            if (currentBBox !== null) {
-                currentBBox.bbox.marked = false
-                currentBBox = null
+            if (state.currentBBox !== null) {
+                state.currentBBox.bbox.marked = false
+                state.currentBBox = null
             }
         })
     }
@@ -154,11 +156,11 @@
         const selectedObject = selectedObjects[0]
         const underlyingBBox = selectedObject.underlying_bbox
 
-        const index = bboxes[currentImage.name][selectedObject.underlying_bbox.class].findIndex(
+        const index = state.bboxes[state.currentImage.name][selectedObject.underlying_bbox.class].findIndex(
             element => (element.height === underlyingBBox.height) && (element.width === underlyingBBox.width) && (element.x === underlyingBBox.x) && (element.y === underlyingBBox.y)
         );
 
-        currentBBox = {
+        state.currentBBox = {
             bbox: selectedObject.underlying_bbox,
             // index: bboxes[currentImage.name][selectedObject.underlying_bbox.class].length-1, // What was that? hidden memes?
             index: index,
@@ -172,19 +174,19 @@
     }
 
     const refreshCanvas = () => {
-        if (currentImage === null) {
+        if (state.currentImage === null) {
             return
         }
 
         canvas.clear()
-        drawImageScratch(currentImage, canvas)
+        drawImageScratch(state.currentImage, canvas)
         // drawNewBbox(context)
         drawExistingBboxes(bboxInformationID, canvas)
     }
 
     const drawExistingBboxes = (bboxInformationContainerID, canvas) => {
-        const imgScale = currentImage.scale
-        const currentBboxes = bboxes[currentImage.name]
+        const imgScale = state.currentImage.scale
+        const currentBboxes = state.bboxes[state.currentImage.name]
 
         for (let className in currentBboxes) {
             currentBboxes[className].forEach(bbox => {
@@ -274,21 +276,22 @@
         if (event.target && event.target.selectable) {
             return
         }
-        if (currentImage === null || currentImage === undefined ||
-            currentClass === null || currentClass === undefined) {
+        if (state.currentImage === null || state.currentImage === undefined ||
+            state.currentClass === null || state.currentClass === undefined) {
             // Prevent drawing new bounding box when no image or classname is selected
             return
         }
         if (canvas.getActiveObject()) {
             canvas.discardActiveObject()
         }
-        const imgScale = currentImage.scale
+        const imgScale = state.currentImage.scale
         isDrawingMode = true
         const pointer = canvas.getPointer(event.e)
         
-        const newBBox = canvasRectToBBox({left: pointer.x, top: pointer.y, width: 0, height: 0}, imgScale, currentClass)
+        const newBBox = canvasRectToBBox({left: pointer.x, top: pointer.y, width: 0, height: 0}, imgScale,
+            state.currentClass)
 
-        const { rect, label, vertical, horizontal } = newRect(newBBox, currentClass, {
+        const { rect, label, vertical, horizontal } = newRect(newBBox, state.currentClass, {
             scale: imgScale,
             rect_props: {
                 stroke: borderColor,
@@ -394,7 +397,7 @@
         drawingObject.rect.fire('modified', mockOptions)
         canvas.setActiveObject(drawingObject.rect)
         // Simply store new bounding box
-        saveBBox(bboxes, drawingObject.bbox, currentImage.name)
+        saveBBox(state.bboxes, drawingObject.bbox, state.currentImage.name)
     }
 
     const canvasRectToBBox = (rect, scale, classname) => {
@@ -417,7 +420,7 @@
             storage[imageName][bbox.class] = []
         }
         storage[imageName][bbox.class].push(bbox)
-        currentBBox = {
+        state.currentBBox = {
             bbox: bbox,
             index: storage[imageName][bbox.class].length - 1,
             originalX: bbox.x,
@@ -457,7 +460,7 @@
                     // Position in the image list; skipped non-image files must not leave gaps
                     const index = imageList.length
 
-                    images[files[i].name] = {
+                    state.images[files[i].name] = {
                         meta: files[i],
                         index: index
                     }
@@ -475,7 +478,7 @@
                 }
             }
 
-            const imageSet = images // Loads from an earlier selection must not touch a newer image set
+            const imageSet = state.images // Loads from an earlier selection must not touch a newer image set
             const imageNames = Object.keys(imageSet)
             const failed = []
 
@@ -496,7 +499,7 @@
                     failed.push(imageName)
                 })))
 
-            if (images !== imageSet) {
+            if (state.images !== imageSet) {
                 return
             }
 
@@ -510,16 +513,16 @@
                     `${failed.slice(0, 10).join("\n")}${more}`)
             }
 
-            const firstLoaded = imageNames.find((name) => typeof images[name].width !== "undefined")
+            const firstLoaded = imageNames.find((name) => typeof state.images[name].width !== "undefined")
 
             if (typeof firstLoaded !== "undefined") {
-                imageListIndex = images[firstLoaded].index
-                imageList.selectedIndex = imageListIndex
+                state.imageListIndex = state.images[firstLoaded].index
+                imageList.selectedIndex = state.imageListIndex
 
-                setCurrentImage(imageInformationContainerID, images[firstLoaded])
+                setCurrentImage(imageInformationContainerID, state.images[firstLoaded])
             }
 
-            if (Object.keys(classes).length > 0) {
+            if (Object.keys(state.classes).length > 0) {
                 document.getElementById(bboxesContainerID).disabled = false
                 document.getElementById(restoreBboxesContainerID).disabled = false
             }
@@ -531,11 +534,11 @@
 
         imageList.innerHTML = ""
 
-        images = {}
-        bboxes = {}
-        currentImage = null
-        currentImageRequest++
-        imageListIndex = 0
+        state.images = {}
+        state.bboxes = {}
+        state.currentImage = null
+        state.currentImageRequest++
+        state.imageListIndex = 0
     }
 
     const setCurrentImage = async (imageInformationContainerID, imageFile) => {
@@ -543,11 +546,11 @@
             resetCanvasPlacement()
         }
 
-        const request = ++currentImageRequest
+        const request = ++state.currentImageRequest
 
-        if (currentBBox !== null) {
-            currentBBox.bbox.marked = false // We unmark via reference
-            currentBBox = null // and the we delete
+        if (state.currentBBox !== null) {
+            state.currentBBox.bbox.marked = false // We unmark via reference
+            state.currentBBox = null // and the we delete
         }
 
         document.getElementById(imageInformationContainerID).innerHTML =
@@ -564,11 +567,11 @@
         }
 
         // Another image was selected while this one was loading
-        if (request !== currentImageRequest) {
+        if (request !== state.currentImageRequest) {
             return
         }
 
-        currentImage = {
+        state.currentImage = {
             name: imageFile.meta.name,
             object: imageObject,
             width: imageFile.width,
@@ -582,9 +585,9 @@
         const imageList = document.getElementById(imageListContainerID)
 
         imageList.addEventListener("change", () => {
-            imageListIndex = imageList.selectedIndex
+            state.imageListIndex = imageList.selectedIndex
 
-            setCurrentImage(imageInformationContainerID, images[imageList.options[imageListIndex].value])
+            setCurrentImage(imageInformationContainerID, state.images[imageList.options[state.imageListIndex].value])
         })
     }
 
@@ -615,7 +618,7 @@
 
             // Ids count non-empty rows only, so blank lines don't shift them
             Formats.parseClasses(text).forEach((className, id) => {
-                classes[className] = id
+                state.classes[className] = id
 
                 const option = document.createElement("option")
 
@@ -624,7 +627,7 @@
 
                 if (id === 0) {
                     option.selected = true
-                    currentClass = className
+                    state.currentClass = className
                 }
 
                 classList.appendChild(option)
@@ -634,7 +637,7 @@
                 setCurrentClass(classesListContainerID)
             }
 
-            if (Object.keys(images).length > 0) {
+            if (Object.keys(state.images).length > 0) {
                 document.getElementById(bboxesContainerID).disabled = false
                 document.getElementById(restoreBboxesContainerID).disabled = false
             }
@@ -644,19 +647,19 @@
     const resetClassList = (classesListContainerID) => {
         document.getElementById(classesListContainerID).innerHTML = ""
 
-        classes = {}
-        currentClass = null
-        classListIndex = 0
+        state.classes = {}
+        state.currentClass = null
+        state.classListIndex = 0
     }
 
     const setCurrentClass = (classesListContainerID) => {
         const classList = document.getElementById(classesListContainerID)
 
-        currentClass = classList.options[classList.selectedIndex].text
+        state.currentClass = classList.options[classList.selectedIndex].text
 
-        if (currentBBox !== null) {
-            currentBBox.bbox.marked = false // We unmark via reference
-            currentBBox = null // and the we delete
+        if (state.currentBBox !== null) {
+            state.currentBBox.bbox.marked = false // We unmark via reference
+            state.currentBBox = null // and the we delete
         }
     }
 
@@ -664,7 +667,7 @@
         const classList = document.getElementById(classesListContainerID)
 
         classList.addEventListener("change", () => {
-            classListIndex = classList.selectedIndex
+            state.classListIndex = classList.selectedIndex
 
             setCurrentClass(classesListContainerID)
         })
@@ -738,24 +741,24 @@
     }
 
     const resetBboxes = () => {
-        bboxes = {}
+        state.bboxes = {}
     }
 
     // Adds the boxes of one annotation file (.txt/.xml/.json, other files are ignored) to the loaded images
     const storeBbox = (filename, text) => {
-        const {boxes, unmatched} = Formats.parseAnnotationFile(filename, text, images, classes)
+        const {boxes, unmatched} = Formats.parseAnnotationFile(filename, text, state.images, state.classes)
 
         Object.keys(boxes).forEach((imageName) => {
-            if (typeof bboxes[imageName] === "undefined") {
-                bboxes[imageName] = {}
+            if (typeof state.bboxes[imageName] === "undefined") {
+                state.bboxes[imageName] = {}
             }
 
             boxes[imageName].forEach((bbox) => {
-                if (typeof bboxes[imageName][bbox.class] === "undefined") {
-                    bboxes[imageName][bbox.class] = []
+                if (typeof state.bboxes[imageName][bbox.class] === "undefined") {
+                    state.bboxes[imageName][bbox.class] = []
                 }
 
-                bboxes[imageName][bbox.class].push(bbox)
+                state.bboxes[imageName][bbox.class].push(bbox)
             })
         })
 
@@ -779,7 +782,7 @@
             `(see console for the full list):\n\n${shown}${more}`)
     }
 
-    // Tallies boxes whose class isn't in the loaded class list (e.g. after loading another classes file)
+    // Warns about boxes left out because their class isn't in the loaded class list (see Formats.exportYolo)
     const reportUnknownClasses = (format, unknownClasses) => {
         const names = Object.keys(unknownClasses)
 
@@ -807,7 +810,7 @@
 
     const listenBboxSave = (saveBBoxesContainerID) => {
         document.getElementById(saveBBoxesContainerID).addEventListener("click", () => {
-            const {files, skipped, unknownClasses} = Formats.exportYolo(bboxes, images, classes)
+            const {files, skipped, unknownClasses} = Formats.exportYolo(state.bboxes, state.images, state.classes)
 
             reportSkipped("YOLO", skipped)
             reportUnknownClasses("YOLO", unknownClasses)
@@ -818,7 +821,7 @@
     const listenBboxVocSave = (saveBBoxesVOCContainerID, vocFolderContainerID) => {
         document.getElementById(saveBBoxesVOCContainerID).addEventListener("click", () => {
             const folderPath = document.getElementById(vocFolderContainerID).value
-            const {files, skipped} = Formats.exportVoc(bboxes, images, folderPath)
+            const {files, skipped} = Formats.exportVoc(state.bboxes, state.images, folderPath)
 
             reportSkipped("VOC", skipped)
             downloadZip(files, "bboxes_voc.zip")
@@ -827,7 +830,7 @@
 
     const listenBboxCocoSave = (saveBBoxesCOCOContainerID) => {
         document.getElementById(saveBBoxesCOCOContainerID).addEventListener("click", () => {
-            const {files, skipped, unknownClasses} = Formats.exportCoco(bboxes, images, classes)
+            const {files, skipped, unknownClasses} = Formats.exportCoco(state.bboxes, state.images, state.classes)
 
             reportSkipped("COCO", skipped)
             reportUnknownClasses("COCO", unknownClasses)
@@ -841,12 +844,13 @@
             const item = localStorage.getItem("bboxes")
 
             if (item) {
-                bboxes = JSON.parse(item)
-                currentBBox = null
+                state.bboxes = JSON.parse(item)
+                state.currentBBox = null
 
                 // The backup is shared by all image sets, so it may hold boxes for images that aren't loaded
-                const unmatched = Object.keys(bboxes).filter((imageName) => typeof images[imageName] === "undefined" &&
-                    Object.values(bboxes[imageName]).some((classBboxes) => classBboxes.length > 0))
+                const unmatched = Object.keys(state.bboxes).filter((imageName) =>
+                    typeof state.images[imageName] === "undefined" &&
+                    Object.values(state.bboxes[imageName]).some((classBboxes) => classBboxes.length > 0))
 
                 if (unmatched.length > 0) {
                     const more = unmatched.length > 10 ? `\n...and ${unmatched.length - 10} more` : ""
@@ -877,9 +881,11 @@
             const key = event.keyCode || event.charCode
             // Delete
             if (key === 46 || (key === 8 && event.metaKey === true)) {
-                if (currentBBox !== null) {
-                    const deleted = bboxes[currentImage.name][currentBBox.bbox.class].splice(currentBBox.index, 1)
-                    currentBBox = null
+                if (state.currentBBox !== null) {
+                    const {bbox, index} = state.currentBBox
+
+                    state.bboxes[state.currentImage.name][bbox.class].splice(index, 1)
+                    state.currentBBox = null
                     document.body.style.cursor = "default"
                     canvas.remove(canvas.getActiveObject())
                 }
@@ -888,15 +894,16 @@
             // Arrow left
             if (key === 37) {
                 if (imageList.length > 1) {
-                    imageList.options[imageListIndex].selected = false
-                    if (imageListIndex === 0) {
-                        imageListIndex = imageList.length - 1
+                    imageList.options[state.imageListIndex].selected = false
+                    if (state.imageListIndex === 0) {
+                        state.imageListIndex = imageList.length - 1
                     } else {
-                        imageListIndex--
+                        state.imageListIndex--
                     }
-                    imageList.options[imageListIndex].selected = true
-                    imageList.selectedIndex = imageListIndex
-                    setCurrentImage(imageInformationContainerID, images[imageList.options[imageListIndex].value])
+                    imageList.options[state.imageListIndex].selected = true
+                    imageList.selectedIndex = state.imageListIndex
+                    setCurrentImage(imageInformationContainerID,
+                        state.images[imageList.options[state.imageListIndex].value])
                     document.body.style.cursor = "default"
                 }
                 event.preventDefault()
@@ -904,15 +911,16 @@
             // Arrow right
             if (key === 39) {
                 if (imageList.length > 1) {
-                    imageList.options[imageListIndex].selected = false
-                    if (imageListIndex === imageList.length - 1) {
-                        imageListIndex = 0
+                    imageList.options[state.imageListIndex].selected = false
+                    if (state.imageListIndex === imageList.length - 1) {
+                        state.imageListIndex = 0
                     } else {
-                        imageListIndex++
+                        state.imageListIndex++
                     }
-                    imageList.options[imageListIndex].selected = true
-                    imageList.selectedIndex = imageListIndex
-                    setCurrentImage(imageInformationContainerID, images[imageList.options[imageListIndex].value])
+                    imageList.options[state.imageListIndex].selected = true
+                    imageList.selectedIndex = state.imageListIndex
+                    setCurrentImage(imageInformationContainerID,
+                        state.images[imageList.options[state.imageListIndex].value])
                     document.body.style.cursor = "default"
                 }
                 event.preventDefault()
@@ -920,14 +928,14 @@
             // Arrow up
             if (key === 38) {
                 if (classList.length > 1) {
-                    classList.options[classListIndex].selected = false
-                    if (classListIndex === 0) {
-                        classListIndex = classList.length - 1
+                    classList.options[state.classListIndex].selected = false
+                    if (state.classListIndex === 0) {
+                        state.classListIndex = classList.length - 1
                     } else {
-                        classListIndex--
+                        state.classListIndex--
                     }
-                    classList.options[classListIndex].selected = true
-                    classList.selectedIndex = classListIndex
+                    classList.options[state.classListIndex].selected = true
+                    classList.selectedIndex = state.classListIndex
                     setCurrentClass(classListContainerID)
                 }
                 event.preventDefault()
@@ -935,14 +943,14 @@
             // Arrow down
             if (key === 40) {
                 if (classList.length > 1) {
-                    classList.options[classListIndex].selected = false
-                    if (classListIndex === classList.length - 1) {
-                        classListIndex = 0
+                    classList.options[state.classListIndex].selected = false
+                    if (state.classListIndex === classList.length - 1) {
+                        state.classListIndex = 0
                     } else {
-                        classListIndex++
+                        state.classListIndex++
                     }
-                    classList.options[classListIndex].selected = true
-                    classList.selectedIndex = classListIndex
+                    classList.options[state.classListIndex].selected = true
+                    classList.selectedIndex = state.classListIndex
                     setCurrentClass(classListContainerID)
                 }
                 event.preventDefault()
@@ -958,12 +966,12 @@
         document.getElementById(imageSearchContainerID).addEventListener("input", (event) => {
             const value = event.target.value
 
-            for (let imageName in images) {
+            for (let imageName in state.images) {
                 if (imageName.indexOf(value) !== -1) {
-                    imageListIndex = images[imageName].index
-                    document.getElementById(imageListContainerID).selectedIndex = imageListIndex
+                    state.imageListIndex = state.images[imageName].index
+                    document.getElementById(imageListContainerID).selectedIndex = state.imageListIndex
 
-                    setCurrentImage(imageInformationContainerID, images[imageName])
+                    setCurrentImage(imageInformationContainerID, state.images[imageName])
 
                     break
                 }
@@ -973,7 +981,7 @@
 
     const listenImageCrop = (cropImagesContainerID) => {
         document.getElementById(cropImagesContainerID).addEventListener("click", async () => {
-            const {crops, skipped} = Formats.cropRegions(bboxes, images)
+            const {crops, skipped} = Formats.cropRegions(state.bboxes, state.images)
             const decoded = {} // One decode per image, shared by all its crops
             const files = {}
 
