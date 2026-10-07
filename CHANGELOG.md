@@ -1,3 +1,38 @@
+# 2026-10-07, v0.3.0
+Since v0.2.5 this fork switched to FabricJS, updated jszip and FileSaver.js, and added BMP images
+(see README.md). This release fixes exports and imports and makes loading more forgiving.
+
+Added:
+* COCO annotations can be loaded without a classes file: the class list is filled from the json's categories.
+* The backup saves the class list too, so Restore only needs the images.
+* Files that aren't class lists (COCO json, YOLO labels, ...) are refused by the Classes picker, with a hint
+  to use Bboxes instead.
+* Warnings for skipped data: boxes of images or classes that aren't loaded, images that fail to decode,
+  unreadable annotation files.
+* Unit tests for reading and writing annotation files (`tests/`).
+
+Changed:
+* The canvas follows window resizes and browser zoom, and stays sharp after zooming in.
+* A new box can be drawn while another one is selected; pressing inside a box selects it.
+* Hints next to Classes and Restore; Save YOLO and Save COCO share a row; the side panel scrolls when needed.
+* A malformed VOC file adds none of its boxes. `.csv` class files are no longer offered (they were never read).
+* Annotation file parsing and export moved into `formats.js`.
+
+Fixed:
+* Save YOLO/VOC/COCO and Crop&Save did nothing if the boxes referred to an image that isn't loaded.
+* COCO import could put boxes on the wrong image, or stop at an annotation of an unloaded image.
+* COCO annotations whose `file_name` includes a folder were not matched.
+* Exported boxes are clipped to the image; VOC text is escaped and coordinates are integers.
+* YOLO labels are read without rounding and tolerate extra spaces; blank rows in a classes file no longer shift ids.
+* Annotation zips with folders, and upper-case file extensions, load correctly.
+* Switching images quickly or loading a new image set no longer shows the wrong image.
+* One image that fails to decode no longer stops the rest from loading.
+* Delete and arrow keys no longer act on boxes and images while typing in a text field.
+* Delete no longer removes a box that was already deselected.
+* Image names with `&` and other special characters work in the image list.
+* Ctrl+click on the selected image or class no longer breaks the arrow keys.
+* The canvas redraws after Restore and after loading annotations, even if some files fail.
+
 # 2019-12-02, v0.2.5
 Renamed project to make it more fit for professional environment.
 Replaced sample image.
