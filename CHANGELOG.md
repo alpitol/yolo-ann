@@ -10,6 +10,7 @@ Added:
 * Warnings for skipped data: boxes of images or classes that aren't loaded, images that fail to decode,
   unreadable annotation files.
 * Unit tests for reading and writing annotation files (`tests/`).
+* A progress bar and counter under Images while the selected images are read.
 
 Changed:
 * The canvas follows window resizes and browser zoom, and stays sharp after zooming in.

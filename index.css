@@ -93,3 +93,8 @@ hr {
 .row .hint {
     margin-top: 0;
 }
+
+/* .row's display: flex would otherwise override the hidden attribute */
+.row[hidden] {
+    display: none;
+}

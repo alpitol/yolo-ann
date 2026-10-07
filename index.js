@@ -44,6 +44,7 @@
     const imageInformationID = 'imageInformation'
     const imagesID = 'images'
     const imageListID = 'imageList'
+    const imageProgressID = "imageProgress"
     const imageSearchID = 'imageSearch'
     const bboxesID = 'bboxes'
     const restoreBboxesID = 'restoreBboxes'
@@ -500,26 +501,38 @@
             const imageNames = Object.keys(imageSet)
             const failed = []
 
+            let done = 0
+
             if (imageNames.length === 0) {
                 document.body.style.cursor = "default" // An earlier, superseded load may have set "wait"
+                showImageProgress(null)
 
                 return
             }
 
             document.body.style.cursor = "wait"
+            showImageProgress(0, imageNames.length, 0)
 
             // Decode every image once to learn its size, which the annotation formats need
-            await mapLimit(imageNames, fileReadConcurrency, (imageName) => {
+            await mapLimit(imageNames, fileReadConcurrency, async (imageName) => {
                 if (state.images !== imageSet) {
-                    return null // A newer selection replaced this one; stop reading its files
+                    return // A newer selection replaced this one; stop reading its files
                 }
 
-                return loadImage(imageSet[imageName].meta).then((imageObject) => {
+                try {
+                    const imageObject = await loadImage(imageSet[imageName].meta)
+
                     imageSet[imageName].width = imageObject.width
                     imageSet[imageName].height = imageObject.height
-                }, () => {
+                } catch (error) {
                     failed.push(imageName)
-                })
+                }
+
+                done += 1
+
+                if (state.images === imageSet) {
+                    showImageProgress(done, imageNames.length, failed.length)
+                }
             })
 
             if (state.images !== imageSet) {
@@ -527,6 +540,7 @@
             }
 
             document.body.style.cursor = "default"
+            showImageProgress(null)
 
             if (failed.length > 0) {
                 const more = failed.length > 10 ? `\n...and ${failed.length - 10} more` : ""
@@ -544,6 +558,25 @@
 
             updateLoadButtons()
         })
+    }
+
+    // Shows "Reading images: done / total" under the Images picker; pass null to hide it
+    const showImageProgress = (done, total, failedCount) => {
+        const container = document.getElementById(imageProgressID)
+
+        if (done === null) {
+            container.hidden = true
+
+            return
+        }
+
+        const bar = container.querySelector("progress")
+        const failedText = failedCount > 0 ? ` (${failedCount} failed)` : ""
+
+        bar.max = total
+        bar.value = done
+        container.querySelector("span").textContent = `Reading images: ${done} / ${total}${failedText}`
+        container.hidden = false
     }
 
     // Annotations and the backup are matched to loaded images, so they need images first. Classes are
