@@ -100,8 +100,8 @@
         if (document.readyState === "complete") {
             initCanvas(canvasID, bboxInformationID)
             listenCanvasMouse(bboxInformationID)
-            listenImageLoad(imageInformationID, imagesID, imageListID, bboxesID, restoreBboxesID)
-            listenImageSelect(imageInformationID, imageListID)
+            listenImageLoad(imagesID, imageListID, bboxesID, restoreBboxesID)
+            listenImageSelect(imageListID)
             listenClassLoad(classListID, classesID, bboxesID, restoreBboxesID)
             listenClassSelect(classListID)
             listenBboxLoad(bboxesID)
@@ -109,8 +109,8 @@
             listenBboxVocSave(saveBBoxesVOCID, vocFolderID)
             listenBboxCocoSave(saveBBoxesCOCOID)
             listenBboxRestore(restoreBboxesID)
-            listenKeyboard(imageInformationID, imageListID, classListID)
-            listenImageSearch(imageInformationID, imageSearchID, imageListID)
+            listenKeyboard(imageListID, classListID)
+            listenImageSearch(imageSearchID)
             listenImageCrop(cropImagesID)
         }
     }
@@ -136,12 +136,15 @@
         canvas.on('selection:created', changeCurrentBBox)
         canvas.on('selection:updated', changeCurrentBBox)
         // Otherwise Delete would still remove the last selected bbox's data while its rect stays on the canvas
-        canvas.on('selection:cleared', () => {
-            if (state.currentBBox !== null) {
-                state.currentBBox.bbox.marked = false
-                state.currentBBox = null
-            }
-        })
+        canvas.on('selection:cleared', clearCurrentBBox)
+    }
+
+    // Forgets the selected box; its rect stays on the canvas
+    const clearCurrentBBox = () => {
+        if (state.currentBBox !== null) {
+            state.currentBBox.bbox.marked = false // Unmark via reference
+            state.currentBBox = null
+        }
     }
 
     const changeCurrentBBox = (options) => {
@@ -192,29 +195,8 @@
             currentBboxes[className].forEach(bbox => {
 
                 // Draw bounding box itself
-                const { rect, label, vertical, horizontal } = newRect(bbox, className, {
-                    scale: imgScale,
-                    rect_props: {
-                        stroke: borderColor,
-                        activeStroke: markedBorderColor,
-                        strokeWidth: 1,
-                        fill: backgroundColor,
-                        activeFill: markedBackgroundColor,
-                        opacity: 1.0,
-                    },
-                    label_props: {
-                        fontSize: fontBaseSize * defaultScale,
-                        fill: fontColor,
-                        activeFill: markedFontColor,
-                    },
-                    cross_props: {
-                        enabled: drawCenterX,
-                        paddingPercentage: linePaddingPercent,
-                        stroke: borderColor,
-                        activeStroke: markedBorderColor,
-                    },
-                    container: { id: bboxInformationContainerID }
-                })
+                const { rect, label, vertical, horizontal } = newRect(bbox, className,
+                    bboxStyle(imgScale, bboxInformationContainerID))
 
                 // Finally add the bounding box, label and possibly cross to the canvas
                 canvas.add(rect)
@@ -225,6 +207,31 @@
             })
         }
     }
+
+    // Options for newRect: how boxes look on the canvas, unselected and selected
+    const bboxStyle = (scale, bboxInformationContainerID) => ({
+        scale: scale,
+        rect_props: {
+            stroke: borderColor,
+            activeStroke: markedBorderColor,
+            strokeWidth: 1,
+            fill: backgroundColor,
+            activeFill: markedBackgroundColor,
+            opacity: 1.0
+        },
+        label_props: {
+            fontSize: fontBaseSize * defaultScale,
+            fill: fontColor,
+            activeFill: markedFontColor
+        },
+        cross_props: {
+            enabled: drawCenterX,
+            paddingPercentage: linePaddingPercent,
+            stroke: borderColor,
+            activeStroke: markedBorderColor
+        },
+        container: { id: bboxInformationContainerID }
+    })
 
     const listenCanvasMouse = (bboxInformationContainerID) => {
         canvas.on('mouse:wheel', trackWheel)
@@ -291,29 +298,8 @@
         const newBBox = canvasRectToBBox({left: pointer.x, top: pointer.y, width: 0, height: 0}, imgScale,
             state.currentClass)
 
-        const { rect, label, vertical, horizontal } = newRect(newBBox, state.currentClass, {
-            scale: imgScale,
-            rect_props: {
-                stroke: borderColor,
-                activeStroke: markedBorderColor,
-                strokeWidth: 1,
-                fill: backgroundColor,
-                activeFill: markedBackgroundColor,
-                opacity: 1.0,
-            },
-            label_props: {
-                fontSize: fontBaseSize * defaultScale,
-                fill: fontColor,
-                activeFill: markedFontColor,
-            },
-            cross_props: {
-                enabled: drawCenterX,
-                paddingPercentage: linePaddingPercent,
-                stroke: borderColor,
-                activeStroke: markedBorderColor,
-            },
-            container: { id: bboxInformationContainerID }
-        })
+        const { rect, label, vertical, horizontal } = newRect(newBBox, state.currentClass,
+            bboxStyle(imgScale, bboxInformationContainerID))
 
         drawingObject = {
             rect: rect,
@@ -444,7 +430,7 @@
         opt.e.stopPropagation()
     }
 
-    const listenImageLoad = (imageInformationContainerID, imagesContainerID, imageListContainerID, bboxesContainerID, restoreBboxesContainerID) => {
+    const listenImageLoad = (imagesContainerID, imageListContainerID, bboxesContainerID, restoreBboxesContainerID) => {
         document.getElementById(imagesContainerID).addEventListener("change", async (event) => {
             const imageList = document.getElementById(imageListContainerID)
             const files = event.target.files
@@ -516,10 +502,7 @@
             const firstLoaded = imageNames.find((name) => typeof state.images[name].width !== "undefined")
 
             if (typeof firstLoaded !== "undefined") {
-                state.imageListIndex = state.images[firstLoaded].index
-                imageList.selectedIndex = state.imageListIndex
-
-                setCurrentImage(imageInformationContainerID, state.images[firstLoaded])
+                selectImage(state.images[firstLoaded].index)
             }
 
             if (Object.keys(state.classes).length > 0) {
@@ -541,19 +524,31 @@
         state.imageListIndex = 0
     }
 
-    const setCurrentImage = async (imageInformationContainerID, imageFile) => {
+    // The only way to change the current image (list click, arrow keys, search, loading): selects its row,
+    // remembers the position for the arrow keys and shows the image
+    const selectImage = (index) => {
+        const imageList = document.getElementById(imageListID)
+
+        if (index < 0 || index >= imageList.length) {
+            return
+        }
+
+        state.imageListIndex = index
+        imageList.selectedIndex = index
+
+        setCurrentImage(state.images[imageList.options[index].value])
+    }
+
+    const setCurrentImage = async (imageFile) => {
         if (resetCanvasOnChange === true) {
             resetCanvasPlacement()
         }
 
         const request = ++state.currentImageRequest
 
-        if (state.currentBBox !== null) {
-            state.currentBBox.bbox.marked = false // We unmark via reference
-            state.currentBBox = null // and the we delete
-        }
+        clearCurrentBBox()
 
-        document.getElementById(imageInformationContainerID).innerHTML =
+        document.getElementById(imageInformationID).innerHTML =
             `${imageFile.width}x${imageFile.height}, ${formatBytes(imageFile.meta.size)}`
 
         let imageObject = null
@@ -581,13 +576,16 @@
         refreshCanvas()
     }
 
-    const listenImageSelect = (imageInformationContainerID, imageListContainerID) => {
+    const listenImageSelect = (imageListContainerID) => {
         const imageList = document.getElementById(imageListContainerID)
 
         imageList.addEventListener("change", () => {
-            state.imageListIndex = imageList.selectedIndex
-
-            setCurrentImage(imageInformationContainerID, state.images[imageList.options[state.imageListIndex].value])
+            if (imageList.selectedIndex < 0) {
+                // Ctrl+click deselected the only row; keep showing the current image
+                imageList.selectedIndex = state.imageListIndex
+            } else {
+                selectImage(imageList.selectedIndex)
+            }
         })
     }
 
@@ -625,17 +623,10 @@
                 option.value = id
                 option.textContent = className
 
-                if (id === 0) {
-                    option.selected = true
-                    state.currentClass = className
-                }
-
                 classList.appendChild(option)
             })
 
-            if (classList.length > 0) {
-                setCurrentClass(classesListContainerID)
-            }
+            selectClass(0)
 
             if (Object.keys(state.images).length > 0) {
                 document.getElementById(bboxesContainerID).disabled = false
@@ -652,24 +643,30 @@
         state.classListIndex = 0
     }
 
-    const setCurrentClass = (classesListContainerID) => {
-        const classList = document.getElementById(classesListContainerID)
+    // The only way to change the class given to new boxes (list click, arrow keys, loading classes)
+    const selectClass = (index) => {
+        const classList = document.getElementById(classListID)
 
-        state.currentClass = classList.options[classList.selectedIndex].text
-
-        if (state.currentBBox !== null) {
-            state.currentBBox.bbox.marked = false // We unmark via reference
-            state.currentBBox = null // and the we delete
+        if (index < 0 || index >= classList.length) {
+            return
         }
+
+        state.classListIndex = index
+        classList.selectedIndex = index
+        state.currentClass = classList.options[index].text
+
+        clearCurrentBBox()
     }
 
     const listenClassSelect = (classesListContainerID) => {
         const classList = document.getElementById(classesListContainerID)
 
         classList.addEventListener("change", () => {
-            state.classListIndex = classList.selectedIndex
-
-            setCurrentClass(classesListContainerID)
+            if (classList.selectedIndex < 0) {
+                classList.selectedIndex = state.classListIndex
+            } else {
+                selectClass(classList.selectedIndex)
+            }
         })
     }
 
@@ -865,7 +862,7 @@
         })
     }
 
-    const listenKeyboard = (imageInformationContainerID, imageListContainerID, classListContainerID) => {
+    const listenKeyboard = (imageListContainerID, classListContainerID) => {
         const imageList = document.getElementById(imageListContainerID)
         const classList = document.getElementById(classListContainerID)
     
@@ -891,68 +888,20 @@
                 }
                 event.preventDefault()
             }
-            // Arrow left
-            if (key === 37) {
-                if (imageList.length > 1) {
-                    imageList.options[state.imageListIndex].selected = false
-                    if (state.imageListIndex === 0) {
-                        state.imageListIndex = imageList.length - 1
-                    } else {
-                        state.imageListIndex--
-                    }
-                    imageList.options[state.imageListIndex].selected = true
-                    imageList.selectedIndex = state.imageListIndex
-                    setCurrentImage(imageInformationContainerID,
-                        state.images[imageList.options[state.imageListIndex].value])
-                    document.body.style.cursor = "default"
-                }
-                event.preventDefault()
+            // Arrow left/right: previous/next image, wrapping around
+            if ((key === 37 || key === 39) && imageList.length > 1) {
+                const step = key === 37 ? -1 : 1
+
+                selectImage((state.imageListIndex + step + imageList.length) % imageList.length)
+                document.body.style.cursor = "default"
             }
-            // Arrow right
-            if (key === 39) {
-                if (imageList.length > 1) {
-                    imageList.options[state.imageListIndex].selected = false
-                    if (state.imageListIndex === imageList.length - 1) {
-                        state.imageListIndex = 0
-                    } else {
-                        state.imageListIndex++
-                    }
-                    imageList.options[state.imageListIndex].selected = true
-                    imageList.selectedIndex = state.imageListIndex
-                    setCurrentImage(imageInformationContainerID,
-                        state.images[imageList.options[state.imageListIndex].value])
-                    document.body.style.cursor = "default"
-                }
-                event.preventDefault()
+            // Arrow up/down: previous/next class, wrapping around
+            if ((key === 38 || key === 40) && classList.length > 1) {
+                const step = key === 38 ? -1 : 1
+
+                selectClass((state.classListIndex + step + classList.length) % classList.length)
             }
-            // Arrow up
-            if (key === 38) {
-                if (classList.length > 1) {
-                    classList.options[state.classListIndex].selected = false
-                    if (state.classListIndex === 0) {
-                        state.classListIndex = classList.length - 1
-                    } else {
-                        state.classListIndex--
-                    }
-                    classList.options[state.classListIndex].selected = true
-                    classList.selectedIndex = state.classListIndex
-                    setCurrentClass(classListContainerID)
-                }
-                event.preventDefault()
-            }
-            // Arrow down
-            if (key === 40) {
-                if (classList.length > 1) {
-                    classList.options[state.classListIndex].selected = false
-                    if (state.classListIndex === classList.length - 1) {
-                        state.classListIndex = 0
-                    } else {
-                        state.classListIndex++
-                    }
-                    classList.options[state.classListIndex].selected = true
-                    classList.selectedIndex = state.classListIndex
-                    setCurrentClass(classListContainerID)
-                }
+            if (key >= 37 && key <= 40) {
                 event.preventDefault()
             }
         })
@@ -962,19 +911,13 @@
         // @todo: when image changes we need to reset zooms/scales and etc.
     }
 
-    const listenImageSearch = (imageInformationContainerID, imageSearchContainerID, imageListContainerID) => {
+    const listenImageSearch = (imageSearchContainerID) => {
         document.getElementById(imageSearchContainerID).addEventListener("input", (event) => {
             const value = event.target.value
+            const match = Object.keys(state.images).find((imageName) => imageName.indexOf(value) !== -1)
 
-            for (let imageName in state.images) {
-                if (imageName.indexOf(value) !== -1) {
-                    state.imageListIndex = state.images[imageName].index
-                    document.getElementById(imageListContainerID).selectedIndex = state.imageListIndex
-
-                    setCurrentImage(imageInformationContainerID, state.images[imageName])
-
-                    break
-                }
+            if (typeof match !== "undefined") {
+                selectImage(state.images[match].index)
             }
         })
     }
