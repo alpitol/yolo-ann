@@ -100,9 +100,9 @@
         if (document.readyState === "complete") {
             initCanvas(canvasID, bboxInformationID)
             listenCanvasMouse(bboxInformationID)
-            listenImageLoad(imagesID, imageListID, bboxesID, restoreBboxesID)
+            listenImageLoad(imagesID, imageListID)
             listenImageSelect(imageListID)
-            listenClassLoad(classListID, classesID, bboxesID, restoreBboxesID)
+            listenClassLoad(classesID)
             listenClassSelect(classListID)
             listenBboxLoad(bboxesID)
             listenBboxSave(saveBBoxesID)
@@ -430,7 +430,7 @@
         opt.e.stopPropagation()
     }
 
-    const listenImageLoad = (imagesContainerID, imageListContainerID, bboxesContainerID, restoreBboxesContainerID) => {
+    const listenImageLoad = (imagesContainerID, imageListContainerID) => {
         document.getElementById(imagesContainerID).addEventListener("change", async (event) => {
             const imageList = document.getElementById(imageListContainerID)
             const files = event.target.files
@@ -505,11 +505,18 @@
                 selectImage(state.images[firstLoaded].index)
             }
 
-            if (Object.keys(state.classes).length > 0) {
-                document.getElementById(bboxesContainerID).disabled = false
-                document.getElementById(restoreBboxesContainerID).disabled = false
-            }
+            updateLoadButtons()
         })
+    }
+
+    // Annotations are matched to loaded images, so they need images first. Classes are optional for them:
+    // a COCO file brings its own. The backup only makes sense with both.
+    const updateLoadButtons = () => {
+        const hasImages = Object.keys(state.images).length > 0
+        const hasClasses = Object.keys(state.classes).length > 0
+
+        document.getElementById(bboxesID).disabled = !hasImages
+        document.getElementById(restoreBboxesID).disabled = !(hasImages && hasClasses)
     }
 
     const resetImageList = (imageListContainerID) => {
@@ -589,7 +596,7 @@
         })
     }
 
-    const listenClassLoad = (classesListContainerID, classesContainerID, bboxesContainerID, restoreBboxesContainerID) => {
+    const listenClassLoad = (classesContainerID) => {
         const classesElement = document.getElementById(classesContainerID)
     
         classesElement.addEventListener("click", () => {
@@ -603,44 +610,42 @@
                 return
             }
 
-            resetClassList(classesListContainerID)
-
             const extension = Formats.extensionOf(files[0].name)
 
             if (extension !== "txt" && extension !== "names") {
+                setClassList([])
+
                 return
             }
 
-            const text = await readText(files[0])
-            const classList = document.getElementById(classesListContainerID)
-
             // Ids count non-empty rows only, so blank lines don't shift them
-            Formats.parseClasses(text).forEach((className, id) => {
-                state.classes[className] = id
-
-                const option = document.createElement("option")
-
-                option.value = id
-                option.textContent = className
-
-                classList.appendChild(option)
-            })
-
-            selectClass(0)
-
-            if (Object.keys(state.images).length > 0) {
-                document.getElementById(bboxesContainerID).disabled = false
-                document.getElementById(restoreBboxesContainerID).disabled = false
-            }
+            setClassList(Formats.parseClasses(await readText(files[0])))
         })
     }
 
-    const resetClassList = (classesListContainerID) => {
-        document.getElementById(classesListContainerID).innerHTML = ""
+    // Replaces the class list; a class's position in it is its YOLO id
+    const setClassList = (classNames) => {
+        const classList = document.getElementById(classListID)
+
+        classList.innerHTML = ""
 
         state.classes = {}
         state.currentClass = null
         state.classListIndex = 0
+
+        classNames.forEach((className, id) => {
+            state.classes[className] = id
+
+            const option = document.createElement("option")
+
+            option.value = id
+            option.textContent = className
+
+            classList.appendChild(option)
+        })
+
+        selectClass(0)
+        updateLoadButtons()
     }
 
     // The only way to change the class given to new boxes (list click, arrow keys, loading classes)
@@ -687,24 +692,37 @@
             resetBboxes()
 
             // Each file reports its own errors, so the canvas is always redrawn at the end
-            await Promise.all(files.map(loadAnnotationSource))
+            const needClasses = [].concat(...await Promise.all(files.map(loadAnnotationSource)))
+
+            if (needClasses.length > 0) {
+                const more = needClasses.length > 10 ? `\n...and ${needClasses.length - 10} more` : ""
+
+                console.warn("No classes loaded, so no boxes were read from:", needClasses)
+                alert(`YOLO and VOC files need a classes file, but none is loaded. No boxes were read from ` +
+                    `${needClasses.length} file(s). Load classes, then load the annotations again:\n\n` +
+                    `${needClasses.slice(0, 10).join("\n")}${more}`)
+            }
 
             refreshCanvas()
         })
     }
 
-    // Reads one picked annotation file, or a zip of them
+    // Reads one picked annotation file, or a zip of them.
+    // Returns the names of files that were skipped because no classes are loaded (see storeBbox).
     const loadAnnotationSource = async (file) => {
         const extension = Formats.extensionOf(file.name)
+        const needClasses = []
 
         if (extension === "txt" || extension === "xml" || extension === "json") {
             try {
-                storeBbox(file.name, await readText(file))
+                if (!storeBbox(file.name, await readText(file))) {
+                    needClasses.push(file.name)
+                }
             } catch (error) {
                 alert(`Could not read ${file.name}: ${error.message}`)
             }
 
-            return
+            return needClasses
         }
 
         let archive = null
@@ -714,7 +732,7 @@
         } catch (error) {
             alert(`Could not read ${file.name} as a zip archive: ${error.message}`)
 
-            return
+            return needClasses
         }
 
         // Skip folders and macOS metadata (__MACOSX/, ._name)
@@ -725,7 +743,9 @@
         await Promise.all(entries.map(async (filename) => {
             try {
                 // Match labels to images by file name, whatever folder they are in
-                storeBbox(Formats.baseName(filename), await archive.file(filename).async("string"))
+                if (!storeBbox(Formats.baseName(filename), await archive.file(filename).async("string"))) {
+                    needClasses.push(filename)
+                }
             } catch (error) {
                 failed.push(`${filename}: ${error.message}`)
             }
@@ -735,15 +755,29 @@
             console.warn(`Could not read from ${file.name}:`, failed)
             alert(`Could not read ${failed.length} file(s) from ${file.name}:\n\n${failed.slice(0, 10).join("\n")}`)
         }
+
+        return needClasses
     }
 
     const resetBboxes = () => {
         state.bboxes = {}
     }
 
-    // Adds the boxes of one annotation file (.txt/.xml/.json, other files are ignored) to the loaded images
+    // Adds the boxes of one annotation file (.txt/.xml/.json, other files are ignored) to the loaded images.
+    // Without a class list, a COCO file fills it from its categories. Returns false for a YOLO/VOC file of a
+    // loaded image that was skipped because there are no classes to name its boxes.
     const storeBbox = (filename, text) => {
+        const noClasses = Object.keys(state.classes).length === 0
+
+        if (noClasses && Formats.extensionOf(filename) === "json") {
+            setClassList(Formats.cocoClassNames(text))
+        }
+
         const {boxes, unmatched} = Formats.parseAnnotationFile(filename, text, state.images, state.classes)
+
+        if (noClasses && Formats.extensionOf(filename) !== "json" && Object.keys(boxes).length > 0) {
+            return false
+        }
 
         Object.keys(boxes).forEach((imageName) => {
             if (typeof state.bboxes[imageName] === "undefined") {
@@ -762,6 +796,8 @@
         if (unmatched > 0) {
             console.warn(`${filename}: skipped ${unmatched} annotation(s) whose image is not loaded`)
         }
+
+        return true
     }
 
     const reportSkipped = (format, skipped) => {

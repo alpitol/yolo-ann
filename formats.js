@@ -156,6 +156,23 @@ const Formats = (() => {
         return {boxes, unmatched}
     }
 
+    // Class names of a COCO JSON file in category id order, which is how exportCoco numbers them.
+    // Empty and repeated names are left out.
+    const cocoClassNames = (text) => {
+        const categories = (JSON.parse(text).categories || [])
+            .filter((category) => typeof category.name === "string" && category.name.trim() !== "")
+            .sort((a, b) => a.id - b.id)
+        const names = []
+
+        categories.forEach((category) => {
+            if (names.indexOf(category.name) === -1) {
+                names.push(category.name)
+            }
+        })
+
+        return names
+    }
+
     // Reads one annotation file of any supported type (.txt, .xml, .json; other files are ignored).
     // YOLO and VOC files apply to every loaded image with the same name and an image extension.
     // Returns { boxes: { [imageName]: [bbox] }, unmatched } like parseCoco.
@@ -382,6 +399,7 @@ const Formats = (() => {
         parseYolo,
         parseVoc,
         parseCoco,
+        cocoClassNames,
         parseAnnotationFile,
         exportYolo,
         exportVoc,

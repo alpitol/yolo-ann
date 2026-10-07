@@ -11,6 +11,9 @@ Fast and efficient BBox annotation for your images in YOLO, and now, VOC/COCO fo
 1. Navigate to https://lddl.github.io/yolo-ann/
 2. Load images and classes and start bboxing!
 
+    To continue from COCO annotations, load images and then the COCO `.json` without a classes file: the class
+    list is filled from its `categories`. YOLO and VOC annotations need a classes file loaded first.
+
 ### Offline
 
 <details>
@@ -30,7 +33,7 @@ Fast and efficient BBox annotation for your images in YOLO, and now, VOC/COCO fo
 
 3. Open `index.html` in your browser.
 
-4. Load images and classes and start bboxing!
+4. Load images and classes and start bboxing (see Online above for COCO files)!
 
 5. Optional configuration:
 

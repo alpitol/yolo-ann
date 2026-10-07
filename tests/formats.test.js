@@ -217,6 +217,21 @@ const defineFormatsTests = (Formats, test, assert) => {
         assert.equal(result, {boxes: {"a.jpg": bboxes["a.jpg"].boat, "b.jpg": bboxes["b.jpg"].powerboat}, unmatched: 0})
     })
 
+    test("cocoClassNames orders categories by id and drops empty and repeated names", () => {
+        const json = JSON.stringify({images: [], annotations: [], categories: [
+            {id: 7, name: "buoy"}, {id: 1, name: "boat"}, {id: 3, name: ""}, {id: 4, name: "boat"}, {id: 2}
+        ]})
+
+        assert.equal(Formats.cocoClassNames(json), ["boat", "buoy"])
+        assert.equal(Formats.cocoClassNames(JSON.stringify({images: [], annotations: []})), [])
+    })
+
+    test("cocoClassNames gives back the class list of exportCoco", () => {
+        const {files} = Formats.exportCoco({}, {"a.jpg": image}, {buoy: 0, boat: 1, powerboat: 2})
+
+        assert.equal(Formats.cocoClassNames(files["coco.json"]), ["buoy", "boat", "powerboat"])
+    })
+
     /* Crop&Save */
 
     test("cropRegions names crops by class and position, skipping boxes outside the image", () => {
