@@ -9,7 +9,7 @@ const setBBoxCoordinates = (containerID, x, y, width, height) => {
 const newRect = (bbox, className,
     {
         scale = 1,
-        rect_props = { stroke: '#1f77b4', activeStroke: '#aec7e8', strokeWidth: 2, fill: 'rgba(0, 116, 217, 0.2)', activeFill: 'rgba(255, 133, 27, 0.2)', opacity: 1.0 },
+        rect_props = { stroke: '#1f77b4', activeStroke: '#aec7e8', strokeWidth: 2, fill: 'rgba(31, 119, 180, 0.2)', activeFill: 'rgba(174, 199, 232, 0.2)', opacity: 1.0 },
         label_props = { fontSize: 30, fill: '#ffffff', activeFill: '#000000', backgroundColor: '#1f77b4', activeBackgroundColor: '#aec7e8' },
         container = { id: null }
     }) => {

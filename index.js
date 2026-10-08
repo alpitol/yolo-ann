@@ -8,7 +8,7 @@
     const fontColor = "#001f3f" // Base font color
     const borderColor = "#001f3f" // Base bbox border color
     const borderWidth = 2 // Bbox border width
-    const backgroundColor = "rgba(0, 116, 217, 0.2)" // Base bbox fill color
+    const fillOpacity = 0.2 // Bbox fill: the border color at this opacity
     // Border and label background by class id: the bright half of the tab20 palette (matplotlib, D3) ...
     const classColors = ["#1f77b4", "#ff7f0e", "#2ca02c", "#d62728", "#9467bd",
         "#8c564b", "#e377c2", "#7f7f7f", "#bcbd22", "#17becf"]
@@ -18,7 +18,6 @@
     const unknownClassColor = "#ff00ff" // Border and label background of boxes whose class isn't loaded
     const markedUnknownClassColor = "#ff99ff" // The same for the selected box
     const markedFontColor = "#ff4136" // Marked font color in the intro text
-    const markedBackgroundColor = "rgba(255, 133, 27, 0.2)" // Marked bbox fill color
     const minBBoxWidth = 5 // Minimal width of bbox
     const minBBoxHeight = 5 // Minimal height of bbox
     const minZoom = 0.1 // Smallest zoom allowed
@@ -322,7 +321,8 @@
     }
 
     // Options for newRect: how boxes look on the canvas, unselected and selected
-    // The border and the label background share the class color, a light variant of it when selected
+    // The border, the translucent fill and the label background share the class color, a light variant of it
+    // when selected
     const bboxStyle = (scale, className, bboxInformationContainerID) => {
         const { color, markedColor } = classColor(className)
 
@@ -332,8 +332,8 @@
                 stroke: color,
                 activeStroke: markedColor,
                 strokeWidth: borderWidth,
-                fill: backgroundColor,
-                activeFill: markedBackgroundColor,
+                fill: withOpacity(color, fillOpacity),
+                activeFill: withOpacity(markedColor, fillOpacity),
                 opacity: 1.0
             },
             label_props: {
@@ -357,9 +357,14 @@
         return { color: classColors[i], markedColor: markedClassColors[i] }
     }
 
+    const rgbOf = (hex) => [1, 3, 5].map(i => parseInt(hex.slice(i, i + 2), 16))
+
+    // "#rrggbb" as an "rgba(...)" with the given opacity
+    const withOpacity = (hex, opacity) => `rgba(${rgbOf(hex).join(", ")}, ${opacity})`
+
     // Black or white text, whichever is more readable on the given "#rrggbb" background
     const textColorOn = (hex) => {
-        const [r, g, b] = [1, 3, 5].map(i => parseInt(hex.slice(i, i + 2), 16))
+        const [r, g, b] = rgbOf(hex)
         const luma = 0.299 * r + 0.587 * g + 0.114 * b
 
         return luma > 150 ? "#000000" : "#ffffff"

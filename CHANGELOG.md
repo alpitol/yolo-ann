@@ -7,9 +7,10 @@ Added:
 Changed:
 * Zooming with the scroll wheel is twice as fast (`wheelZoomSpeed` in `index.js`).
 * Boxes have no cross in the middle anymore.
-* Boxes are colored by class (the bright tab20 colors): the 2 px border, centered on the box edge, and the
-  label background share the color, so the label is a tab on the box. The selected box turns to the light
-  variant of its color instead of red. Label text is black or white, whichever reads better on the color.
+* Boxes are colored by class (the bright tab20 colors): the 2 px border, centered on the box edge, the
+  translucent fill (20 % opacity, `fillOpacity` in `index.js`) and the label background share the color, so the
+  label is a tab on the box. The selected box turns to the light variant of its color instead of red and
+  orange. Label text is black or white, whichever reads better on the color.
 * From opening the Images picker until the images are read, every other control is disabled. Opening another
   file picker while a Flatpak browser is still exporting the images through its document portal hangs the
   browser.
