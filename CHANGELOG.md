@@ -1,4 +1,4 @@
-# 2026-10-07, v0.3.0
+# 2026-10-08, v0.3.0
 This release fixes exports and imports and makes loading more forgiving.
 
 Added:
