@@ -1,24 +1,3 @@
-# Unreleased
-Added:
-* Restore backup asks for confirmation first, showing when the backup was taken and how many boxes and images
-  the backup and the current state have.
-* The Classes picker reads a YOLO dataset yaml (`data.yaml`): its `names`, as an id map (`0: boat`) or a list
-  (`- boat` or `[boat]`), become the class list. `nc`, if present, must match the number of names.
-Changed:
-* Zooming with the scroll wheel is twice as fast (`wheelZoomSpeed` in `index.js`).
-* Boxes have no cross in the middle anymore.
-* Boxes are colored by class (the bright tab20 colors): the 2 px border, centered on the box edge, the
-  translucent fill (20 % opacity, `fillOpacity` in `index.js`) and the label background share the color, so the
-  label is a tab on the box. The selected box turns to the light variant of its color instead of red and
-  orange. Label text is black or white, whichever reads better on the color.
-* From opening the Images picker until the images are read, every other control is disabled. Opening another
-  file picker while a Flatpak browser is still exporting the images through its document portal hangs the
-  browser.
-
-Fixed:
-* The label of a box drawn right to left or bottom to top stayed at the starting corner until the image was
-  changed.
-
 # 2026-10-07, v0.3.0
 This release fixes exports and imports and makes loading more forgiving.
 
@@ -32,6 +11,11 @@ Added:
 * Unit tests for reading and writing annotation files (`tests/`).
 * A spinner under Images from the moment the file picker opens, and a progress bar and counter while the
   selected images are read.
+* Restore backup asks for confirmation first, showing when the backup was taken and how many boxes and images
+  the backup and the current state have.
+* The Classes picker reads a YOLO dataset yaml (`data.yaml`): its `names`, as an id map (`0: boat`) or a list
+  (`- boat` or `[boat]`), become the class list. `nc`, if present, must match the number of names.
+
 
 Changed:
 * The canvas follows window resizes and browser zoom, and stays sharp after zooming in.
@@ -41,6 +25,15 @@ Changed:
 * The sidebar can be resized by dragging its border (double-click resets it); the width is remembered.
 * A malformed VOC file adds none of its boxes. `.csv` class files are no longer offered (they were never read).
 * Annotation file parsing and export moved into `formats.js`.
+* Zooming with the scroll wheel is twice as fast (`wheelZoomSpeed` in `index.js`).
+* Boxes have no cross in the middle anymore.
+* Boxes are colored by class (the bright tab20 colors): the 2 px border, centered on the box edge, the
+  translucent fill (20 % opacity, `fillOpacity` in `index.js`) and the label background share the color, so the
+  label is a tab on the box. The selected box turns to the light variant of its color instead of red and
+  orange. Label text is black or white, whichever reads better on the color.
+* From opening the Images picker until the images are read, every other control is disabled. Opening another
+  file picker while a Flatpak browser is still exporting the images through its document portal hangs the
+  browser.
 
 Fixed:
 * Resizing a box no longer scales the width of its border.
@@ -62,6 +55,8 @@ Fixed:
 * Loading hundreds of images, annotation files, or Crop&Save no longer opens every file at once, which could
   freeze the browser (especially Flatpak/Snap browsers or with an on-access virus scanner). Files are read four
   at a time, and Crop&Save releases each decoded image when its crops are done.
+* The label of a box drawn right to left or bottom to top stayed at the starting corner until the image was
+  changed.
 
 # 2024-03-01, v0.2.6
 Since v0.2.5 this fork switched to FabricJS, updated jszip and FileSaver.js, and added BMP images (see README.md).
