@@ -92,6 +92,7 @@
                 // The class list in id order, so Restore works without loading the classes file again
                 localStorage.setItem("classes", JSON.stringify(Object.keys(state.classes)
                     .sort((a, b) => state.classes[a] - state.classes[b])))
+                localStorage.setItem("bboxesSavedAt", new Date().toISOString())
             }
         }, saveInterval * 1000)
     } else {
@@ -1073,6 +1074,35 @@
     }
 
 
+    const countBboxes = (bboxes) => {
+        let images = 0
+        let boxes = 0
+
+        Object.values(bboxes || {}).forEach((imageBboxes) => {
+            const count = Object.values(imageBboxes || {})
+                .reduce((sum, classBboxes) => sum + (Array.isArray(classBboxes) ? classBboxes.length : 0), 0)
+
+            if (count > 0) {
+                images++
+                boxes += count
+            }
+        })
+
+        return {images, boxes}
+    }
+
+    const describeBackup = (backup, savedAt) => {
+        const saved = savedAt ? new Date(savedAt) : null
+        const when = saved && !isNaN(saved) ? saved.toLocaleString() : "unknown (saved by an older version)"
+        const inBackup = countBboxes(backup)
+        const current = countBboxes(state.bboxes)
+
+        return "Restore the backup? It replaces all current boxes.\n\n" +
+            `Backup taken: ${when}\n` +
+            `Backup: ${inBackup.boxes} box(es) on ${inBackup.images} image(s)\n` +
+            `Current: ${current.boxes} box(es) on ${current.images} image(s)`
+    }
+
     const listenBboxRestore = (restoreBboxesContainerID) => {
         document.getElementById(restoreBboxesContainerID).addEventListener("click", () => {
             let backup = null
@@ -1090,6 +1120,10 @@
             if (backup === null) {
                 alert("There is no backup in this browser yet.")
 
+                return
+            }
+
+            if (!confirm(describeBackup(backup, localStorage.getItem("bboxesSavedAt")))) {
                 return
             }
 

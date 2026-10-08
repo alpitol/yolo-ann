@@ -1,3 +1,8 @@
+# Unreleased
+Added:
+* Restore backup asks for confirmation first, showing when the backup was taken and how many boxes and images
+  the backup and the current state have.
+
 # 2026-10-07, v0.3.0
 This release fixes exports and imports and makes loading more forgiving.
 
