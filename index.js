@@ -71,6 +71,8 @@
 
     // Panning
     var isPanning = false
+    let controlsLocked = false // See lockControls
+
     let lastPosX = 0;
     let lastPosY = 0;
     // Prevent context menu on right click - it's used for panning
@@ -548,6 +550,7 @@
         const stopWaiting = () => {
             if (waitingForFiles && !reading) {
                 showImageProgress(null)
+                lockControls(false)
             }
 
             waitingForFiles = false
@@ -557,6 +560,7 @@
         // browser exporting each file through its document portal), and the page gets nothing until then
         imagesElement.addEventListener("click", () => {
             waitingForFiles = true
+            lockControls(true)
 
             if (!reading) {
                 showImageProgress("waiting")
@@ -573,6 +577,7 @@
             if (files.length === 0) {
                 if (!reading) {
                     showImageProgress(null)
+                    lockControls(false)
                 }
 
                 return
@@ -613,12 +618,14 @@
                 document.body.style.cursor = "default" // An earlier, superseded load may have set "wait"
                 reading = false
                 showImageProgress(null)
+                lockControls(false)
 
                 return
             }
 
             document.body.style.cursor = "wait"
             reading = true
+            lockControls(true) // Also for files dropped on the picker, which sends no click
             showImageProgress(0, imageNames.length, 0)
 
             // Decode every image once to learn its size, which the annotation formats need
@@ -650,6 +657,7 @@
             document.body.style.cursor = "default"
             reading = false
             showImageProgress(null)
+            lockControls(false)
 
             if (failed.length > 0) {
                 const more = failed.length > 10 ? `\n...and ${failed.length - 10} more` : ""
@@ -667,6 +675,35 @@
 
             updateLoadButtons()
         })
+    }
+
+    // Disables every control but the Images picker from the moment its picker opens until the images are read.
+    // Opening another file picker (Classes, Bboxes) while a Flatpak browser is still exporting the picked
+    // images through its document portal hangs the browser. Restores what was enabled before.
+    const lockControls = (locked) => {
+        if (locked === controlsLocked) {
+            return
+        }
+
+        controlsLocked = locked
+
+        if (locked) {
+            document.querySelectorAll("form input, form select, form button, form textarea").forEach((control) => {
+                if (control.id !== imagesID && !control.disabled) {
+                    control.disabled = true
+                    control.dataset.locked = "true"
+                }
+            })
+
+            return
+        }
+
+        document.querySelectorAll("form [data-locked]").forEach((control) => {
+            control.disabled = false
+            delete control.dataset.locked
+        })
+
+        updateLoadButtons()
     }
 
     // Shows a spinner and "Reading images: done / total" under the Images picker. Pass "waiting" while the
@@ -702,6 +739,10 @@
     // Annotations and the backup are matched to loaded images, so they need images first. Classes are
     // optional: a COCO file and the backup bring their own.
     const updateLoadButtons = () => {
+        if (controlsLocked) {
+            return // lockControls calls this again when unlocking
+        }
+
         const hasImages = Object.keys(state.images).length > 0
 
         document.getElementById(bboxesID).disabled = !hasImages
