@@ -5,6 +5,14 @@ Added:
 
 Changed:
 * Zooming with the scroll wheel is twice as fast (`wheelZoomSpeed` in `index.js`).
+* Boxes have no cross in the middle anymore.
+* The box border is 2 px wide, centered on the box edge, with a 1 px white outline outside it for contrast.
+* Labels have a solid background colored by class (the light tab20 colors). The label text no longer turns
+  red when the box is selected.
+
+Fixed:
+* The label of a box drawn right to left or bottom to top stayed at the starting corner until the image was
+  changed.
 
 # 2026-10-07, v0.3.0
 This release fixes exports and imports and makes loading more forgiving.

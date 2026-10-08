@@ -11,15 +11,6 @@ const formatBytes = (bytes, decimals) => {
     return parseFloat((bytes / Math.pow(k, i)).toFixed(dm)) + " " + sizes[i]
 }
 
-const crossFromRectangle = (x, y, width, height, paddingPercentage = 1) => {
-    const centerX = x + width / 2
-    const centerY = y + height / 2
-
-    const offsetY = (height - (height * paddingPercentage)) / 2
-    const offsetX = (width - (width * paddingPercentage)) / 2
-
-    return { vertical: [centerX, (centerY - offsetY), centerX, (centerY + offsetY)], horizontal: [(centerX - offsetX), centerY, (centerX + offsetX), centerY] }
-}
 // Promise wrappers for file loading, so callers can use async/await
 const readFile = (file, method) => new Promise((resolve, reject) => {
     const reader = new FileReader()

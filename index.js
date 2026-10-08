@@ -7,7 +7,14 @@
     const fontBaseSize = 30 // Text size in pixels
     const fontColor = "#001f3f" // Base font color
     const borderColor = "#001f3f" // Base bbox border color
+    const borderWidth = 2 // Bbox border width
+    const outlineColor = "#ffffff" // Thin outline outside the bbox border, for contrast on dark images
+    const outlineWidth = borderWidth / 2 // Width of that outline
     const backgroundColor = "rgba(0, 116, 217, 0.2)" // Base bbox fill color
+    // Label backgrounds by class id: the light half of the tab20 palette (matplotlib, D3)
+    const classLabelColors = ["#aec7e8", "#ffbb78", "#98df8a", "#ff9896", "#c5b0d5",
+        "#c49c94", "#f7b6d2", "#c7c7c7", "#dbdb8d", "#9edae5"]
+    const unknownClassLabelColor = "#ffffff" // Label background of boxes whose class isn't loaded
     const markedFontColor = "#ff4136" // Marked bbox font color
     const markedBorderColor = "#ff4136" // Marked bbox border color
     const markedBackgroundColor = "rgba(255, 133, 27, 0.2)" // Marked bbox fill color
@@ -18,8 +25,6 @@
     const wheelZoomSpeed = 0.002 // Zoom change per scroll unit (deltaY); larger zooms faster
     const resetCanvasOnChange = true // Whether to return to default position and zoom on image change
     const defaultScale = 0.5 // Default zoom level for images. Can be overridden with fittedZoom
-    const drawCenterX = true // Whether to draw a cross in the middle of bbox
-    const linePaddingPercent = 0.2 // Padding for cross
     const drawCursorGuidelines = true // Whether to draw guidelines for cursor
     const minSidebarWidth = 200 // Narrowest the sidebar can be dragged, in pixels
     const minCanvasWidth = 300 // How close to the right window edge the sidebar can be dragged, in pixels
@@ -304,27 +309,24 @@
         for (let className in currentBboxes) {
             currentBboxes[className].forEach(bbox => {
 
-                // Draw bounding box itself
-                const { rect, label, vertical, horizontal } = newRect(bbox, className,
-                    bboxStyle(imgScale, bboxInformationContainerID))
+                const { rect, label } = newRect(bbox, className,
+                    bboxStyle(imgScale, className, bboxInformationContainerID))
 
-                // Finally add the bounding box, label and possibly cross to the canvas
                 canvas.add(rect)
                 canvas.add(label)
-                if (drawCenterX === true) {
-                    canvas.add(vertical, horizontal)
-                }
             })
         }
     }
 
     // Options for newRect: how boxes look on the canvas, unselected and selected
-    const bboxStyle = (scale, bboxInformationContainerID) => ({
+    const bboxStyle = (scale, className, bboxInformationContainerID) => ({
         scale: scale,
         rect_props: {
             stroke: borderColor,
             activeStroke: markedBorderColor,
-            strokeWidth: 1,
+            strokeWidth: borderWidth,
+            outlineColor: outlineColor,
+            outlineWidth: outlineWidth,
             fill: backgroundColor,
             activeFill: markedBackgroundColor,
             opacity: 1.0
@@ -332,16 +334,16 @@
         label_props: {
             fontSize: fontBaseSize * defaultScale,
             fill: fontColor,
-            activeFill: markedFontColor
-        },
-        cross_props: {
-            enabled: drawCenterX,
-            paddingPercentage: linePaddingPercent,
-            stroke: borderColor,
-            activeStroke: markedBorderColor
+            backgroundColor: classLabelColor(className)
         },
         container: { id: bboxInformationContainerID }
     })
+
+    const classLabelColor = (className) => {
+        const id = state.classes[className]
+
+        return Number.isInteger(id) ? classLabelColors[id % classLabelColors.length] : unknownClassLabelColor
+    }
 
     const listenCanvasMouse = (bboxInformationContainerID) => {
         canvas.on('mouse:wheel', trackWheel)
@@ -408,22 +410,19 @@
         const newBBox = canvasRectToBBox({left: pointer.x, top: pointer.y, width: 0, height: 0}, imgScale,
             state.currentClass)
 
-        const { rect, label, vertical, horizontal } = newRect(newBBox, state.currentClass,
-            bboxStyle(imgScale, bboxInformationContainerID))
+        const { rect, label, placeLabel } = newRect(newBBox, state.currentClass,
+            bboxStyle(imgScale, state.currentClass, bboxInformationContainerID))
 
         drawingObject = {
             rect: rect,
             label: label,
-            vertical: vertical,
-            horizontal: horizontal,
+            placeLabel: placeLabel,
             bbox: newBBox,
+            start: pointer
         }
 
         canvas.add(drawingObject.rect)
         canvas.add(drawingObject.label)
-        if (drawCenterX === true) {
-            canvas.add(drawingObject.vertical, drawingObject.horizontal)
-        }
         canvas.setActiveObject(drawingObject.rect) // @todo: this is not highlighing object, which is strange to me
     }
     
@@ -432,11 +431,16 @@
             return
         }
         const pointer = canvas.getPointer(event.e)
+        const start = drawingObject.start
+        // The start point may be any corner, as the box can be drawn in any direction
         drawingObject.rect.set({
-          width: pointer.x - drawingObject.rect.left,
-          height: pointer.y - drawingObject.rect.top,
+          left: Math.min(start.x, pointer.x),
+          top: Math.min(start.y, pointer.y),
+          width: Math.abs(pointer.x - start.x),
+          height: Math.abs(pointer.y - start.y),
           dirty: true,
         })
+        drawingObject.placeLabel()
         canvas.requestRenderAllBound() // Do we need this?
     }
     
@@ -445,33 +449,11 @@
             return
         }
         isDrawingMode = false;
-        
-        // Try to evade negative values of width and height. It could happen when user draws from right to left or from bottom to top
-        if (drawingObject.rect.width < 0) {
-            const newWidth = Math.abs(drawingObject.rect.width);
-            const newLeft = drawingObject.rect.left - newWidth;
-            drawingObject.rect.set({
-                left: newLeft,
-                width: newWidth,
-            })
-        }
-        if (drawingObject.rect.height < 0) {
-            const newHeight = Math.abs(drawingObject.rect.height);
-            const newTop = drawingObject.rect.top - newHeight;
-            drawingObject.rect.set({
-                top: newTop,
-                height: newHeight,
-            })
-        }
 
         if (drawingObject.rect && (drawingObject.rect.width <= minBBoxWidth || drawingObject.rect.height <= minBBoxHeight)) {
             // Do not draw bounding box if it is too small
             canvas.remove(drawingObject.rect)
             canvas.remove(drawingObject.label)
-            if (drawCenterX === true) {
-                canvas.remove(drawingObject.vertical)
-                canvas.remove(drawingObject.horizontal)
-            }
             return
         }
         if (!drawingObject.rect) {
