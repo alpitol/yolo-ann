@@ -43,6 +43,37 @@ const defineFormatsTests = (Formats, test, assert) => {
         assert.ok(/more than once.*: boat$/.test(errorOf("classes.txt", "boat\nbuoy\nboat\nboat")), "duplicates")
     })
 
+    test("readClassFile reads the names of a YOLO data.yaml", () => {
+        const dataYaml = "# YOLO Dataset Configuration\npath: /data/yolo_format\ntrain: images\nval: images\n" +
+            "nc: 4\nnames:\n  0: seamark\n  1: boat\n  2: sailing_boat\n  3: ship\n"
+
+        assert.equal(Formats.readClassFile("data.yaml", dataYaml),
+            {classes: ["seamark", "boat", "sailing_boat", "ship"]})
+        assert.equal(Formats.readClassFile("d.YML", "names:\r\n  1: boat # a comment\r\n  0: 'sea #mark'\r\nx: 1"),
+            {classes: ["sea #mark", "boat"]}, "ids order the names, quotes and CRLF")
+        assert.equal(Formats.readClassFile("d.yaml", "names:\n- boat\n- \"power boat\"\ntest: images"),
+            {classes: ["boat", "power boat"]}, "block list")
+        assert.equal(Formats.readClassFile("d.yaml", "nc: 3\nnames: ['boat', \"buoy\",\n  'a, b']"),
+            {classes: ["boat", "buoy", "a, b"]}, "flow list over lines")
+        assert.equal(Formats.readClassFile("d.yaml", "names: {0: boat, 1: buoy}"),
+            {classes: ["boat", "buoy"]}, "flow map")
+    })
+
+    test("readClassFile rejects data.yaml files without usable names", () => {
+        const errorOf = (text) => Formats.readClassFile("data.yaml", text).error || ""
+
+        assert.ok(/^data\.yaml has no top-level `names:`/.test(errorOf("path: x\n  names: [a]")), "no names")
+        assert.ok(/no class names/.test(errorOf("names: []")), "empty")
+        assert.ok(/must be 0\.\.1/.test(errorOf("names:\n  0: boat\n  2: buoy")), "id gap")
+        assert.ok(/must be 0\.\.1/.test(errorOf("names:\n  0: boat\n  0: buoy")), "repeated id")
+        assert.ok(/aren't class ids/.test(errorOf("names:\n  boat: 0")), "names as keys")
+        assert.ok(/mixes/.test(errorOf("names:\n  - boat\n  1: buoy")), "mixed")
+        assert.ok(/nc: 3.*2 class/.test(errorOf("nc: 3\nnames: [boat, buoy]")), "nc mismatch")
+        assert.ok(/no closing \]/.test(errorOf("names: [boat, buoy")), "unclosed")
+        assert.ok(/without \[ \] or \{ \}/.test(errorOf("names: boat")), "scalar")
+        assert.ok(/more than once.*: boat$/.test(errorOf("names: [boat, boat]")), "duplicates")
+    })
+
     /* YOLO import */
 
     test("parseYolo converts normalised centre/size rows to pixels", () => {

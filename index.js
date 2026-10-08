@@ -845,7 +845,7 @@
 
             try {
                 // Don't read files that are rejected by name anyway (could be a large zip)
-                const text = extension === "txt" || extension === "names" ? await readText(files[0]) : ""
+                const text = ["txt", "names", "yaml", "yml"].includes(extension) ? await readText(files[0]) : ""
 
                 result = Formats.readClassFile(files[0].name, text)
             } catch (error) {
@@ -862,7 +862,7 @@
                 return
             }
 
-            // Ids count non-empty rows only, so blank lines don't shift them
+            // Ids follow the file: non-empty rows (blank lines don't shift them) or the data.yaml `names` ids
             setClassList(result.classes)
         })
     }

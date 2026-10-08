@@ -2,7 +2,8 @@
 Added:
 * Restore backup asks for confirmation first, showing when the backup was taken and how many boxes and images
   the backup and the current state have.
-
+* The Classes picker reads a YOLO dataset yaml (`data.yaml`): its `names`, as an id map (`0: boat`) or a list
+  (`- boat` or `[boat]`), become the class list. `nc`, if present, must match the number of names.
 Changed:
 * Zooming with the scroll wheel is twice as fast (`wheelZoomSpeed` in `index.js`).
 * Boxes have no cross in the middle anymore.

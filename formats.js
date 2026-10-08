@@ -67,6 +67,164 @@ const Formats = (() => {
         .map((row) => row.trim())
         .filter((row) => row !== "")
 
+    // Drops a "# comment" from a YAML line, unless the # is inside quotes or part of a word
+    const stripYamlComment = (line) => {
+        let quote = null
+
+        for (let i = 0; i < line.length; i++) {
+            const char = line.charAt(i)
+
+            if (quote !== null) {
+                quote = char === quote ? null : quote
+            } else if (char === "'" || char === "\"") {
+                quote = char
+            } else if (char === "#" && (i === 0 || /\s/.test(line.charAt(i - 1)))) {
+                return line.slice(0, i)
+            }
+        }
+
+        return line
+    }
+
+    const unquoteYaml = (value) => {
+        const text = value.trim()
+
+        if (text.length >= 2 && text.charAt(0) === "'" && text.charAt(text.length - 1) === "'") {
+            return text.slice(1, -1).replace(/''/g, "'")
+        }
+
+        if (text.length >= 2 && text.charAt(0) === "\"" && text.charAt(text.length - 1) === "\"") {
+            return text.slice(1, -1).replace(/\\(["\\])/g, "$1")
+        }
+
+        return text
+    }
+
+    // Splits "a, 'b, c', d" on the commas outside quotes
+    const splitYamlFlow = (text) => {
+        const items = []
+        let quote = null
+        let item = ""
+
+        for (const char of text) {
+            if (quote !== null) {
+                quote = char === quote ? null : quote
+            } else if (char === "'" || char === "\"") {
+                quote = char
+            } else if (char === ",") {
+                items.push(item)
+                item = ""
+                continue
+            }
+
+            item += char
+        }
+
+        items.push(item)
+
+        return items.map((value) => value.trim()).filter((value) => value !== "")
+    }
+
+    // "key: value" with the key optionally quoted; null if the text has no such colon
+    const splitYamlPair = (text) => {
+        const match = /^\s*('[^']*'|"[^"]*"|[^:'"]+?)\s*:(\s+(.*))?$/.exec(text)
+
+        return match === null ? null : {key: unquoteYaml(match[1]), value: unquoteYaml(match[3] || "")}
+    }
+
+    // Class names of a YOLO dataset yaml (data.yaml), read from its top-level `names`, which can be a map of
+    // ids to names (`0: boat` rows or `{0: boat}`) or a list (`- boat` rows or `[boat]`). Only this subset of
+    // YAML is understood. Returns { names } or { error }; the error continues a sentence starting with the
+    // file name.
+    const parseYamlNames = (text) => {
+        const lines = text.split(/\r?\n/).map(stripYamlComment)
+        const start = lines.findIndex((line) => /^names\s*:/.test(line))
+
+        if (start === -1) {
+            return {error: "has no top-level `names:` with the class names."}
+        }
+
+        let inline = lines[start].replace(/^names\s*:/, "").trim()
+        const entries = []
+
+        if (inline !== "") {
+            const close = {"[": "]", "{": "}"}[inline.charAt(0)]
+
+            if (typeof close === "undefined") {
+                return {error: "has `names:` on one line without [ ] or { }; expected a list or a map of class names."}
+            }
+
+            // A flow list or map may continue on the next lines
+            for (let i = start + 1; !inline.trim().endsWith(close) && i < lines.length; i++) {
+                inline += ` ${lines[i].trim()}`
+            }
+
+            if (!inline.trim().endsWith(close)) {
+                return {error: `has no closing ${close} for \`names:\`.`}
+            }
+
+            splitYamlFlow(inline.trim().slice(1, -1)).forEach((item) => {
+                entries.push(close === "}" ? splitYamlPair(item) || {key: item, value: ""} : {value: unquoteYaml(item)})
+            })
+        } else {
+            // Indented rows under `names:`, or `- ` rows at the same indent; the block ends at the next key
+            for (let i = start + 1; i < lines.length; i++) {
+                const line = lines[i]
+
+                if (line.trim() === "") {
+                    continue
+                }
+
+                if (!/^\s/.test(line) && !/^-(\s|$)/.test(line)) {
+                    break
+                }
+
+                const row = line.trim()
+
+                if (/^-(\s|$)/.test(row)) {
+                    entries.push({value: unquoteYaml(row.slice(1))})
+                } else {
+                    entries.push(splitYamlPair(row) || {key: row, value: ""})
+                }
+            }
+        }
+
+        if (entries.some((entry) => hasOwn(entry, "key")) && entries.some((entry) => !hasOwn(entry, "key"))) {
+            return {error: "mixes `- name` and `id: name` rows under `names:`."}
+        }
+
+        let names = entries.map((entry) => entry.value)
+
+        if (entries.length > 0 && hasOwn(entries[0], "key")) {
+            const ids = entries.map((entry) => entry.key)
+
+            if (!ids.every((id) => /^\d+$/.test(id))) {
+                return {error: "has `names:` keys that aren't class ids (0, 1, 2, ...)."}
+            }
+
+            const sorted = entries.slice().sort((a, b) => Number(a.key) - Number(b.key))
+
+            if (!sorted.every((entry, i) => Number(entry.key) === i)) {
+                return {error: `has class ids ${ids.join(", ")} under \`names:\`; ` +
+                    `they must be 0..${entries.length - 1}, each once.`}
+            }
+
+            names = sorted.map((entry) => entry.value)
+        }
+
+        if (names.some((name) => name === "")) {
+            return {error: "has a class id without a name under `names:`."}
+        }
+
+        const nc = lines.map((line) => /^nc\s*:\s*(\S+)\s*$/.exec(line)).find((match) => match !== null)
+
+        if (typeof nc !== "undefined" && Number(nc[1]) !== names.length) {
+            return {error: `says nc: ${nc[1]}, but \`names:\` has ${names.length} class(es).`}
+        }
+
+        return {names}
+    }
+
     // Checks a file picked as the classes file before it replaces the class list. Annotation files are
     // easy to pick there by mistake, so they get a hint to use the Bboxes field instead.
     // Returns { classes } or { error }.
@@ -83,26 +241,39 @@ const Formats = (() => {
             return {error: `${fileName} looks like annotations, not a class list. ${useBboxes}`}
         }
 
-        if (extension !== "txt" && extension !== "names") {
-            return {error: `${fileName} is not a class list. Use a .txt or .names file with one class name per line.`}
+        let classes = []
+
+        if (extension === "yaml" || extension === "yml") {
+            const result = parseYamlNames(text)
+
+            if (result.error) {
+                return {error: `${fileName} ${result.error}`}
+            }
+
+            classes = result.names
+        } else if (extension === "txt" || extension === "names") {
+            const start = text.trim().charAt(0)
+
+            if (start === "{" || start === "[" || start === "<") {
+                return {error: `${fileName} contains JSON or XML, not one class name per line. ` +
+                    "If it holds annotations, load it with the Bboxes field instead."}
+            }
+
+            classes = parseClasses(text)
+
+            const yoloRow = /^\d+(\s+[-+]?(\d+\.?\d*|\.\d+)(e[-+]?\d+)?){4}$/i
+
+            if (classes.length > 0 && classes.every((row) => yoloRow.test(row))) {
+                return {error: `${fileName} looks like a YOLO label file ("class x y width height" rows), ` +
+                    `not a class list. ${useBboxes}`}
+            }
+        } else {
+            return {error: `${fileName} is not a class list. Use a .txt or .names file with one class name per line, ` +
+                "or a YOLO dataset .yaml (data.yaml)."}
         }
-
-        const start = text.trim().charAt(0)
-
-        if (start === "{" || start === "[" || start === "<") {
-            return {error: `${fileName} contains JSON or XML, not one class name per line. ` +
-                "If it holds annotations, load it with the Bboxes field instead."}
-        }
-
-        const classes = parseClasses(text)
 
         if (classes.length === 0) {
             return {error: `${fileName} contains no class names.`}
-        }
-
-        if (classes.every((row) => /^\d+(\s+[-+]?(\d+\.?\d*|\.\d+)(e[-+]?\d+)?){4}$/i.test(row))) {
-            return {error: `${fileName} looks like a YOLO label file ("class x y width height" rows), ` +
-                `not a class list. ${useBboxes}`}
         }
 
         const duplicates = classes.filter((name, i) => classes.indexOf(name) !== i)
@@ -444,6 +615,7 @@ const Formats = (() => {
         clampBbox,
         escapeXml,
         parseClasses,
+        parseYamlNames,
         readClassFile,
         parseYolo,
         parseVoc,

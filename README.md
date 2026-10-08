@@ -12,7 +12,8 @@ Fast and efficient BBox annotation for your images in YOLO, and now, VOC/COCO fo
 2. Load images and classes and start bboxing!
 
     To continue from COCO annotations, load images and then the COCO `.json` without a classes file: the class
-    list is filled from its `categories`. YOLO and VOC annotations need a classes file loaded first.
+    list is filled from its `categories`. YOLO and VOC annotations need a classes file loaded first: a text file
+    with one class name per line, or the YOLO dataset's `data.yaml` (its `names` are read).
 
 ### Offline
 
@@ -60,7 +61,8 @@ Main differences are:
 * Updated version of `jszip`
 * Updated version of `FileSaver.js`
 * Panning is done via wheel button
-* Accept *.names and *.txt extensions for classnames file (one class name per line)
+* Accept *.names and *.txt extensions for classnames file (one class name per line), and YOLO dataset *.yaml files
+  (`names`)
 
 
 ## Compatibility
