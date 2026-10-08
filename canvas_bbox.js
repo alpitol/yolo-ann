@@ -9,8 +9,8 @@ const setBBoxCoordinates = (containerID, x, y, width, height) => {
 const newRect = (bbox, className,
     {
         scale = 1,
-        rect_props = { stroke: '#001f3f', activeStroke: '#ff4136', strokeWidth: 2, outlineColor: '#ffffff', outlineWidth: 1, fill: 'rgba(0, 116, 217, 0.2)', activeFill: 'rgba(255, 133, 27, 0.2)', opacity: 1.0 },
-        label_props = { fontSize: 30, fill: '#001f3f', backgroundColor: '#ffffff' },
+        rect_props = { stroke: '#1f77b4', activeStroke: '#aec7e8', strokeWidth: 2, fill: 'rgba(0, 116, 217, 0.2)', activeFill: 'rgba(255, 133, 27, 0.2)', opacity: 1.0 },
+        label_props = { fontSize: 30, fill: '#ffffff', activeFill: '#000000', backgroundColor: '#1f77b4', activeBackgroundColor: '#aec7e8' },
         container = { id: null }
     }) => {
     // The border is drawn by renderBorder rather than Fabric's stroke, so left/top/width/height are exactly the
@@ -68,8 +68,9 @@ const newRect = (bbox, className,
         ctx.fillRect(-this.width / 2 - padding, -this.height / 2, this.width + 2 * padding, this.height)
     }
 
-    // Keep the label's background flush with the outer edge of the border, at the top left corner
-    const borderExtent = rect_props.strokeWidth / 2 + rect_props.outlineWidth
+    // Keep the label's background flush with the outer edge of the border, at the top left corner, so they
+    // join into one shape
+    const borderExtent = rect_props.strokeWidth / 2
     const placeLabel = () => {
         label.set({
             left: rect.left - borderExtent + padding,
@@ -85,10 +86,12 @@ const newRect = (bbox, className,
             setBBoxCoordinates(container.id, bbox.x, bbox.y, bbox.width, bbox.height)
         }
         rect.set({ fill: rect_props.activeFill, stroke: rect_props.activeStroke })
+        label.set({ fill: label_props.activeFill, backgroundColor: label_props.activeBackgroundColor })
     })
 
     rect.on('deselected', () => {
         rect.set({ fill: rect_props.fill, stroke: rect_props.stroke })
+        label.set({ fill: label_props.fill, backgroundColor: label_props.backgroundColor })
     })
     
     // Move the label along with the bounding box
@@ -105,26 +108,21 @@ const newRect = (bbox, className,
     return { rect, label, placeLabel }
 }
 
-// The colored border centered on the box edge, with a thin white outline outside it for contrast on dark images.
-// The widths stay constant while the box is being resized (scaleX/scaleY), like Fabric's strokeUniform.
-const renderBorder = (ctx, rect, { strokeWidth, outlineColor, outlineWidth }) => {
+// The colored border centered on the box edge. Its width stays constant while the box is being resized
+// (scaleX/scaleY), like Fabric's strokeUniform.
+const renderBorder = (ctx, rect, { strokeWidth }) => {
+    if (strokeWidth <= 0) {
+        return
+    }
     const scaleX = Math.abs(rect.scaleX) || 1
     const scaleY = Math.abs(rect.scaleY) || 1
     const width = rect.width * scaleX
     const height = rect.height * scaleY
-    const offset = (strokeWidth + outlineWidth) / 2
 
     ctx.save()
     ctx.scale(1 / scaleX, 1 / scaleY)
-    if (outlineWidth > 0) {
-        ctx.lineWidth = outlineWidth
-        ctx.strokeStyle = outlineColor
-        ctx.strokeRect(-width / 2 - offset, -height / 2 - offset, width + 2 * offset, height + 2 * offset)
-    }
-    if (strokeWidth > 0) {
-        ctx.lineWidth = strokeWidth
-        ctx.strokeStyle = rect.stroke
-        ctx.strokeRect(-width / 2, -height / 2, width, height)
-    }
+    ctx.lineWidth = strokeWidth
+    ctx.strokeStyle = rect.stroke
+    ctx.strokeRect(-width / 2, -height / 2, width, height)
     ctx.restore()
 }

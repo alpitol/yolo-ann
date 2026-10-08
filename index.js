@@ -8,15 +8,16 @@
     const fontColor = "#001f3f" // Base font color
     const borderColor = "#001f3f" // Base bbox border color
     const borderWidth = 2 // Bbox border width
-    const outlineColor = "#ffffff" // Thin outline outside the bbox border, for contrast on dark images
-    const outlineWidth = borderWidth / 2 // Width of that outline
     const backgroundColor = "rgba(0, 116, 217, 0.2)" // Base bbox fill color
-    // Label backgrounds by class id: the light half of the tab20 palette (matplotlib, D3)
-    const classLabelColors = ["#aec7e8", "#ffbb78", "#98df8a", "#ff9896", "#c5b0d5",
+    // Border and label background by class id: the bright half of the tab20 palette (matplotlib, D3) ...
+    const classColors = ["#1f77b4", "#ff7f0e", "#2ca02c", "#d62728", "#9467bd",
+        "#8c564b", "#e377c2", "#7f7f7f", "#bcbd22", "#17becf"]
+    // ... and the light half of it for the selected box
+    const markedClassColors = ["#aec7e8", "#ffbb78", "#98df8a", "#ff9896", "#c5b0d5",
         "#c49c94", "#f7b6d2", "#c7c7c7", "#dbdb8d", "#9edae5"]
-    const unknownClassLabelColor = "#ffffff" // Label background of boxes whose class isn't loaded
-    const markedFontColor = "#ff4136" // Marked bbox font color
-    const markedBorderColor = "#ff4136" // Marked bbox border color
+    const unknownClassColor = "#ff00ff" // Border and label background of boxes whose class isn't loaded
+    const markedUnknownClassColor = "#ff99ff" // The same for the selected box
+    const markedFontColor = "#ff4136" // Marked font color in the intro text
     const markedBackgroundColor = "rgba(255, 133, 27, 0.2)" // Marked bbox fill color
     const minBBoxWidth = 5 // Minimal width of bbox
     const minBBoxHeight = 5 // Minimal height of bbox
@@ -319,30 +320,47 @@
     }
 
     // Options for newRect: how boxes look on the canvas, unselected and selected
-    const bboxStyle = (scale, className, bboxInformationContainerID) => ({
-        scale: scale,
-        rect_props: {
-            stroke: borderColor,
-            activeStroke: markedBorderColor,
-            strokeWidth: borderWidth,
-            outlineColor: outlineColor,
-            outlineWidth: outlineWidth,
-            fill: backgroundColor,
-            activeFill: markedBackgroundColor,
-            opacity: 1.0
-        },
-        label_props: {
-            fontSize: fontBaseSize * defaultScale,
-            fill: fontColor,
-            backgroundColor: classLabelColor(className)
-        },
-        container: { id: bboxInformationContainerID }
-    })
+    // The border and the label background share the class color, a light variant of it when selected
+    const bboxStyle = (scale, className, bboxInformationContainerID) => {
+        const { color, markedColor } = classColor(className)
 
-    const classLabelColor = (className) => {
+        return {
+            scale: scale,
+            rect_props: {
+                stroke: color,
+                activeStroke: markedColor,
+                strokeWidth: borderWidth,
+                fill: backgroundColor,
+                activeFill: markedBackgroundColor,
+                opacity: 1.0
+            },
+            label_props: {
+                fontSize: fontBaseSize * defaultScale,
+                fill: textColorOn(color),
+                activeFill: textColorOn(markedColor),
+                backgroundColor: color,
+                activeBackgroundColor: markedColor
+            },
+            container: { id: bboxInformationContainerID }
+        }
+    }
+
+    const classColor = (className) => {
         const id = state.classes[className]
+        if (!Number.isInteger(id)) {
+            return { color: unknownClassColor, markedColor: markedUnknownClassColor }
+        }
+        const i = id % classColors.length
 
-        return Number.isInteger(id) ? classLabelColors[id % classLabelColors.length] : unknownClassLabelColor
+        return { color: classColors[i], markedColor: markedClassColors[i] }
+    }
+
+    // Black or white text, whichever is more readable on the given "#rrggbb" background
+    const textColorOn = (hex) => {
+        const [r, g, b] = [1, 3, 5].map(i => parseInt(hex.slice(i, i + 2), 16))
+        const luma = 0.299 * r + 0.587 * g + 0.114 * b
+
+        return luma > 150 ? "#000000" : "#ffffff"
     }
 
     const listenCanvasMouse = (bboxInformationContainerID) => {
