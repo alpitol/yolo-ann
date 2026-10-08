@@ -15,6 +15,7 @@
     const minBBoxHeight = 5 // Minimal height of bbox
     const minZoom = 0.1 // Smallest zoom allowed
     const maxZoom = 5 // Largest zoom allowed
+    const wheelZoomSpeed = 0.002 // Zoom change per scroll unit (deltaY); larger zooms faster
     const resetCanvasOnChange = true // Whether to return to default position and zoom on image change
     const defaultScale = 0.5 // Default zoom level for images. Can be overridden with fittedZoom
     const drawCenterX = true // Whether to draw a cross in the middle of bbox
@@ -530,7 +531,7 @@
     const trackWheel = (opt) => {
         const delta = opt.e.deltaY
         let zoom = canvas.getZoom()
-        zoom *= 0.999 ** delta
+        zoom *= (1 - wheelZoomSpeed) ** delta
         zoom = Math.min(maxZoom, zoom) // eq. to: if (zoom > maxZoom) zoom = maxZoom;
         zoom = Math.max(minZoom, zoom) // eq. to: if (zoom < minZoom) zoom = minZoom;
         // canvas.setZoom(zoom)
