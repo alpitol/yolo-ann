@@ -420,6 +420,45 @@ const Formats = (() => {
         return {boxes, unmatched: 0}
     }
 
+    /* Class lists */
+
+    // Renames boxes when the class list is replaced, the way a YOLO file reads: a box of the class with id N in
+    // the old list gets the N-th name of the new list. Boxes of classes that aren't in the old list keep their
+    // name, as do those whose id is past the end of the new list (`unmapped`). The bboxes aren't changed; the
+    // result has copies. Returns { bboxes, renamed: [{ from, to, count }], unmapped: { [className]: count } }.
+    const remapClassesById = (bboxes, oldClasses, newNames) => {
+        const target = (className) => {
+            const id = hasOwn(oldClasses, className) ? oldClasses[className] : -1
+
+            return id >= 0 && id < newNames.length ? newNames[id] : className
+        }
+        const result = {}
+        const counts = {}
+        const unmapped = {}
+
+        Object.keys(bboxes).forEach((imageName) => {
+            result[imageName] = {}
+
+            Object.keys(bboxes[imageName]).forEach((className) => {
+                const to = target(className)
+                const moved = bboxes[imageName][className].map((bbox) => Object.assign({}, bbox, {class: to}))
+
+                result[imageName][to] = (result[imageName][to] || []).concat(moved)
+
+                if (to !== className) {
+                    counts[className] = (counts[className] || 0) + moved.length
+                } else if (hasOwn(oldClasses, className) && newNames.indexOf(className) === -1 && moved.length > 0) {
+                    unmapped[className] = (unmapped[className] || 0) + moved.length
+                }
+            })
+        })
+
+        const renamed = Object.keys(counts).sort((a, b) => oldClasses[a] - oldClasses[b])
+            .map((from) => ({from, to: target(from), count: counts[from]}))
+
+        return {bboxes: result, renamed, unmapped}
+    }
+
     /* Writing annotations */
 
     // Annotated images that are loaded, in bboxes order. The others (e.g. restored from a backup of another
@@ -622,6 +661,7 @@ const Formats = (() => {
         parseCoco,
         cocoClassNames,
         parseAnnotationFile,
+        remapClassesById,
         exportYolo,
         exportVoc,
         exportCoco,

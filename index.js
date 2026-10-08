@@ -867,9 +867,46 @@
                 return
             }
 
+            if (!applyClassListToBoxes(files[0].name, result.classes)) {
+                classesElement.value = ""
+
+                return
+            }
+
             // Ids follow the file: non-empty rows (blank lines don't shift them) or the data.yaml `names` ids
             setClassList(result.classes)
         })
+    }
+
+    // A new class list renames the existing boxes by class id (see Formats.remapClassesById), after asking.
+    // Returns false if the user keeps the current class list instead.
+    const applyClassListToBoxes = (fileName, classNames) => {
+        const { bboxes, renamed, unmapped } = Formats.remapClassesById(state.bboxes, state.classes, classNames)
+        const unmappedNames = Object.keys(unmapped)
+
+        if (renamed.length === 0 && unmappedNames.length === 0) {
+            return true
+        }
+
+        const list = (rows) => rows.slice(0, 15).join("\n") +
+            (rows.length > 15 ? `\n...and ${rows.length - 15} more` : "")
+        let message = `${fileName} has other class names. Existing boxes follow their class id:\n\n` +
+            list(renamed.map(({ from, to, count }) => `${from} → ${to} (${count} box(es))`))
+
+        if (unmappedNames.length > 0) {
+            message += `\n\nThese classes have no id in the new list, so their boxes keep the old name (shown in ` +
+                `magenta, and not saved to YOLO or COCO):\n\n` +
+                list(unmappedNames.map((name) => `${name} (${unmapped[name]} box(es))`))
+        }
+
+        if (!confirm(`${message}\n\nOK: load the new class list. Cancel: keep the current one.`)) {
+            return false
+        }
+
+        clearCurrentBBox()
+        state.bboxes = bboxes
+
+        return true
     }
 
     // Replaces the class list; a class's position in it is its YOLO id
@@ -895,6 +932,8 @@
 
         selectClass(0)
         updateLoadButtons()
+        // Box colors and labels follow the class list
+        refreshCanvas()
     }
 
     // The only way to change the class given to new boxes (list click, arrow keys, loading classes)

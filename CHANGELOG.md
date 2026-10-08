@@ -15,6 +15,9 @@ Added:
   the backup and the current state have.
 * The Classes picker reads a YOLO dataset yaml (`data.yaml`): its `names`, as an id map (`0: boat`) or a list
   (`- boat` or `[boat]`), become the class list. `nc`, if present, must match the number of names.
+* Loading a class list with other names renames the existing boxes by class id (the old list's id N gets the
+  new list's N-th name), after a confirmation that lists the renames. Boxes whose id isn't in the new list
+  keep their name.
 
 
 Changed:

@@ -74,6 +74,34 @@ const defineFormatsTests = (Formats, test, assert) => {
         assert.ok(/more than once.*: boat$/.test(errorOf("names: [boat, boat]")), "duplicates")
     })
 
+    /* Class lists */
+
+    test("remapClassesById renames boxes by class id and copies them", () => {
+        const a = box(1, 1, 1, 1, "boat")
+        const b = box(2, 2, 2, 2, "powerboat")
+        const bboxes = {"a.jpg": {boat: [a], powerboat: [b], old: [box(3, 3, 3, 3, "old")]}, "b.jpg": {}}
+        const result = Formats.remapClassesById(bboxes, classes, ["ship", "boat"])
+
+        assert.equal(result.bboxes, {
+            "a.jpg": {ship: [box(1, 1, 1, 1, "ship")], boat: [box(2, 2, 2, 2, "boat")], old: [box(3, 3, 3, 3, "old")]},
+            "b.jpg": {}
+        })
+        assert.equal(result.renamed, [{from: "boat", to: "ship", count: 1}, {from: "powerboat", to: "boat", count: 1}])
+        assert.equal(result.unmapped, {})
+        assert.equal(bboxes["a.jpg"].boat, [a], "input unchanged")
+        assert.equal(a.class, "boat", "input boxes unchanged")
+    })
+
+    test("remapClassesById keeps names past the end of the new list and merges into existing names", () => {
+        const bboxes = {"a.jpg": {boat: [box(1, 1, 1, 1, "boat")], powerboat: [box(2, 2, 2, 2, "powerboat")]}}
+        const result = Formats.remapClassesById(bboxes, classes, ["powerboat"])
+
+        assert.equal(result.bboxes["a.jpg"].powerboat.map((bbox) => bbox.x), [1, 2])
+        assert.equal(result.renamed, [{from: "boat", to: "powerboat", count: 1}])
+        assert.equal(Formats.remapClassesById(bboxes, classes, ["ship"]).unmapped, {powerboat: 1})
+        assert.equal(Formats.remapClassesById(bboxes, classes, ["boat", "powerboat"]).renamed, [], "same list")
+    })
+
     /* YOLO import */
 
     test("parseYolo converts normalised centre/size rows to pixels", () => {
