@@ -1,14 +1,17 @@
-# YOLO BBox Annotation Tool - https://lddl.github.io/yolo-ann
+# YOLO BBox Online Annotation Tool
+Simple and fast YOLO / COCO / VOC bbox annotation tool in browser
 
-Fork of https://github.com/drainingsun/ybat
+## Use it here: https://alpitol.github.io/yolo-ann/
+It's running entirely in your browser, your data is not sent anywhere.
 
-Fast and efficient BBox annotation for your images in YOLO, and now, VOC/COCO formats!
+Fork of [LdDl' yolo-ann](https://github.com/LdDl/yolo-ann/).
 
 ## USAGE
 
 ### Online
 
-1. Navigate to https://lddl.github.io/yolo-ann/
+1. Navigate to https://alpitol.github.io/yolo-ann/
+
 2. Load images and classes and start bboxing!
 
     To continue from COCO annotations, load images and then the COCO `.json` without a classes file: the class
@@ -55,15 +58,14 @@ UI should look something like this:
 
 <img src="ui_1.png" width="720">
 
-## Differences from original repository
-Main differences are:
-* Using `FabricJS` instead of unnamed one. Tons of changes have been done, if you find a bug, please open an issue or open a pull request.
-* Updated version of `jszip`
-* Updated version of `FileSaver.js`
-* Panning is done via wheel button
-* Accept *.names and *.txt extensions for classnames file (one class name per line), and YOLO dataset *.yaml files
-  (`names`)
+## Differences from LdDl's fork
+Fixed bugs are made the tool more robust for my own use. All the changes are fully vibe coded with opus 5.5.
 
+Main differences are:
+* Fixed hangup if images and annotations do not match
+* Fix silent data loss in some cases
+* Fixed some ui bugs
+* The full list is in CHANGELOG.md
 
 ## Compatibility
 All browsers that support ES6 should work. Tested with:
